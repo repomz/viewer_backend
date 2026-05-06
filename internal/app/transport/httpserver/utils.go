@@ -13,11 +13,11 @@ func toResponseBook(book domain.Book) BookResponse {
 	}
 }
 
-func toDomainBook(bookRequest BookRequest) (domain.Book, error) {
-	return domain.NewBook(domain.NewBookData{
-		ID:        bookRequest.ID,
-		CreatedAt: bookRequest.CreatedAt,
-		UpdatedAt: bookRequest.UpdatedAt,
-		Body:      bookRequest.Body,
-	})
-}
+// func toDomainBook(bookRequest BookRequest) (domain.Book, error) {
+// 	return domain.NewBook(domain.NewBookData{
+// 		ID:        bookRequest.ID,
+// 		CreatedAt: bookRequest.CreatedAt,
+// 		UpdatedAt: bookRequest.UpdatedAt,
+// 		Body:      bookRequest.Body,
+// 	})
+// }
