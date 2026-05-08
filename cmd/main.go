@@ -30,7 +30,7 @@ func run() error {
 	// read config from env
 	cfg := config.Read()
 
-	pgDB, err := db.Dial(cfg.DSN)
+	pgDB, err := db.Dial(cfg.DB_DSN)
 	if err != nil {
 		return fmt.Errorf("pg.Dial failed: %w", err)
 	}

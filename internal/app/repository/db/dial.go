@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 // Dial creates new database connection to postgres

@@ -9,8 +9,8 @@ import (
 	"context"
 )
 
-const getBooks = `-- name: GetChirps :many
-SELECT id, created_at, updated_at, body, user_id FROM chirps
+const getBooks = `-- name: GetBooks :many
+SELECT id, created_at, updated_at, body FROM books
 ORDER BY created_at ASC
 `
 
