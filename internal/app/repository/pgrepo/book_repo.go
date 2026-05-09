@@ -4,36 +4,36 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/IdrisovMarat/viewer_backend/internal/app/domain"
-	"github.com/IdrisovMarat/viewer_backend/internal/app/repository/db"
+	"github.com/repomz/viewer_backend/internal/app/domain"
+	"github.com/repomz/viewer_backend/internal/app/repository/db"
 )
 
-type BookRepo struct {
+type StudyRepo struct {
 	query *db.Queries
 }
 
-func NewBookRepo(qr *db.Queries) *BookRepo {
-	return &BookRepo{
+func NewStudyRepo(qr *db.Queries) *StudyRepo {
+	return &StudyRepo{
 		query: qr,
 	}
 }
 
-func (r BookRepo) GetBooks(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Book, error) {
+func (s StudyRepo) GetStudies(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Study, error) {
 
-	books, err := r.query.GetBooks(ctx)
+	studies, err := s.query.GetStudies(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get books: %w", err)
+		return nil, fmt.Errorf("failed to get studys: %w", err)
 	}
 
-	domainBooks := make([]domain.Book, len(books))
-	for i, book := range books {
-		domainBook, err := bookToDomain(book)
+	domainStudies := make([]domain.Study, len(studies))
+	for i, study := range studies {
+		domainStudy, err := studyToDomain(study)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create domain book: %w", err)
+			return nil, fmt.Errorf("failed to create domain study: %w", err)
 		}
 
-		domainBooks[i] = domainBook
+		domainStudies[i] = domainStudy
 	}
 
-	return domainBooks, nil
+	return domainStudies, nil
 }

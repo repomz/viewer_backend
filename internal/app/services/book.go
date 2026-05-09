@@ -3,37 +3,37 @@ package services
 import (
 	"context"
 
-	"github.com/IdrisovMarat/viewer_backend/internal/app/domain"
+	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
-// BookService is a book service
-type BookService struct {
-	repo BookRepository
+// StudyService is a Study service
+type StudyService struct {
+	repo StudyRepository
 }
 
-// NewBookService creates a new book service
-func NewBookService(repo BookRepository) BookService {
-	return BookService{
+// NewStudyService creates a new Study service
+func NewStudyService(repo StudyRepository) StudyService {
+	return StudyService{
 		repo: repo,
 	}
 }
 
-// func (s BookService) GetBook(ctx context.Context, id int) (domain.Book, error) {
-// 	return s.repo.GetBook(ctx, id)
+// func (s StudyService) GetStudy(ctx context.Context, id int) (domain.Study, error) {
+// 	return s.repo.GetStudy(ctx, id)
 // }
 
-// func (s BookService) CreateBook(ctx context.Context, book domain.Book) (domain.Book, error) {
-// 	return s.repo.CreateBook(ctx, book)
+// func (s StudyService) CreateStudy(ctx context.Context, study domain.Study) (domain.Study, error) {
+// 	return s.repo.CreateStudy(ctx, Study)
 // }
 
-// func (s BookService) UpdateBook(ctx context.Context, book domain.Book) (domain.Book, error) {
-// 	return s.repo.UpdateBook(ctx, book)
+// func (s StudyService) UpdateStudy(ctx context.Context, study domain.Study) (domain.Study, error) {
+// 	return s.repo.UpdateStudy(ctx, Study)
 // }
 
-// func (s BookService) DeleteBook(ctx context.Context, id int) error {
-// 	return s.repo.DeleteBook(ctx, id)
+// func (s StudyService) DeleteStudy(ctx context.Context, id int) error {
+// 	return s.repo.DeleteStudy(ctx, id)
 // }
 
-func (s BookService) GetBooks(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Book, error) {
-	return s.repo.GetBooks(ctx, categoryIDs, limit, offset)
+func (s StudyService) GetStudies(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Study, error) {
+	return s.repo.GetStudies(ctx, categoryIDs, limit, offset)
 }

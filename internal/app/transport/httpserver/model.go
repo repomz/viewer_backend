@@ -4,33 +4,51 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/IdrisovMarat/viewer_backend/internal/app/domain"
 	"github.com/google/uuid"
+	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
-type BookRequest struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Body      string    `json:"body"`
+type StudyRequest struct {
+	ID             uuid.UUID `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	StudyID        string    `json:"study_id"`
+	Patient        string    `json:"patient"`
+	Age            int       `json:"age"`
+	Department     string    `json:"department"`
+	NameOperation  string    `json:"name_operation"`
+	DescrOperation string    `json:"descr_operation"`
+	TimeBeginning  time.Time `json:"time_begining"`
+	TimeDuration   int       `json:"time_duration"`
+	Surgeon        string    `json:"surgeon"`
+	DicomLink      string    `json:"dicom_link"`
 }
 
-func (r *BookRequest) Validate() error {
-	if r.Body == "" {
-		return fmt.Errorf("%w: body", domain.ErrRequired)
+func (s *StudyRequest) Validate() error {
+	if s.NameOperation == "" {
+		return fmt.Errorf("%w: name operation", domain.ErrRequired)
 	}
-	// if r.Year <= 0 {
-	// 	return fmt.Errorf("%w: year", domain.ErrNegative)
-	// }
-	// if r.Author == "" {
-	// 	return fmt.Errorf("%w: author", domain.ErrRequired)
-	// }
+	if s.DescrOperation == "" {
+		return fmt.Errorf("%w: description operationr", domain.ErrNegative)
+	}
+	if s.Surgeon == "" {
+		return fmt.Errorf("%w: surgeon", domain.ErrRequired)
+	}
 	return nil
 }
 
-type BookResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Body      string    `json:"body"`
+type StudyResponse struct {
+	ID             uuid.UUID `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	StudyID        string    `json:"study_id"`
+	Patient        string    `json:"patient"`
+	Age            int       `json:"age"`
+	Department     string    `json:"department"`
+	NameOperation  string    `json:"name_operation"`
+	DescrOperation string    `json:"descr_operation"`
+	TimeBeginning  time.Time `json:"time_begining"`
+	TimeDuration   int       `json:"time_duration"`
+	Surgeon        string    `json:"surgeon"`
+	DicomLink      string    `json:"dicom_link"`
 }

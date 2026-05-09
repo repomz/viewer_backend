@@ -10,9 +10,18 @@ import (
 	"github.com/google/uuid"
 )
 
-type Book struct {
-	ID        uuid.UUID
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Body      string
+type Study struct {
+	ID             uuid.UUID
+	StudyID        string
+	Patient        string
+	Age            int
+	Department     string
+	NameOperation  string
+	DescrOperation string
+	TimeBeginning  time.Time
+	TimeDuration   int
+	Surgeon        string
+	DicomLink      string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }

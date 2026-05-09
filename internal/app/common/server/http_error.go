@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/IdrisovMarat/viewer_backend/internal/app/common/slugerrors"
+	"github.com/repomz/viewer_backend/internal/app/common/slugerrors"
 )
 
 func InternalError(slug string, err error, w http.ResponseWriter, r *http.Request) {

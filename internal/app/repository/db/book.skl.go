@@ -9,25 +9,34 @@ import (
 	"context"
 )
 
-const getBooks = `-- name: GetBooks :many
-SELECT id, created_at, updated_at, body FROM books
+const getStudies = `-- name: GetStudies :many
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link FROM studies
 ORDER BY created_at ASC
 `
 
-func (q *Queries) GetBooks(ctx context.Context) ([]Book, error) {
-	rows, err := q.db.QueryContext(ctx, getBooks)
+func (q *Queries) GetStudies(ctx context.Context) ([]Study, error) {
+	rows, err := q.db.QueryContext(ctx, getStudies)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Book
+	var items []Study
 	for rows.Next() {
-		var i Book
+		var i Study
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Body,
+			&i.StudyID,
+			&i.Patient,
+			&i.Age,
+			&i.Department,
+			&i.NameOperation,
+			&i.DescrOperation,
+			&i.TimeBeginning,
+			&i.TimeDuration,
+			&i.Surgeon,
+			&i.DicomLink,
 		); err != nil {
 			return nil, err
 		}

@@ -1,24 +1,43 @@
 package pgrepo
 
 import (
-	"github.com/IdrisovMarat/viewer_backend/internal/app/domain"
-	"github.com/IdrisovMarat/viewer_backend/internal/app/repository/db"
+	"github.com/repomz/viewer_backend/internal/app/domain"
+	"github.com/repomz/viewer_backend/internal/app/repository/db"
 )
 
-// func domainToBook(book domain.Book) db.Book {
-// 	return db.Book{
-// 		ID:        book.ID(),
-// 		CreatedAt: book.CreatedAt(),
-// 		UpdatedAt: book.UpdatedAt(),
-// 		Body:      book.Body(),
-// 	}
-// }
+// func domainTostudy(study domain.Study) db.study {
+// 	return db.study{
+// 		ID:        study.ID(),
+// 		CreatedAt: study.CreatedAt(),
+// 		UpdatedAt: study.UpdatedAt(),
+// 		StudyID:   study.StudyID(),
+// 		Patient:   study.Patient(),
+// 		CreatedAt: study.Age(),
+// 		UpdatedAt: study.Department(),
+// 		Body:      study.NameOperation(),
+// 		ID:        study.Descroperation(),
+// 		CreatedAt: study.TimeBeginning(),
+// 		UpdatedAt: study.TimeDuration(),
+// 		Body:      study.Surgeon(),
+// 		Dicomlink: study.DicomLink(),
+// //
+// // 	}
+// // }
 
-func bookToDomain(book db.Book) (domain.Book, error) {
-	return domain.NewBook(domain.NewBookData{
-		ID:        book.ID,
-		CreatedAt: book.CreatedAt,
-		UpdatedAt: book.UpdatedAt,
-		Body:      book.Body,
+func studyToDomain(study db.Study) (domain.Study, error) {
+	return domain.NewStudy(domain.NewStudyData{
+		ID:             study.ID,
+		CreatedAt:      study.CreatedAt,
+		UpdatedAt:      study.UpdatedAt,
+		StudyID:        study.StudyID,
+		Patient:        study.Patient,
+		Age:            study.Age,
+		Department:     study.Department,
+		NameOperation:  study.NameOperation,
+		DescrOperation: study.DescrOperation,
+		TimeBeginning:  study.TimeBeginning,
+		TimeDuration:   study.TimeDuration,
+		Surgeon:        study.Surgeon,
+		DicomLink:      study.DicomLink,
 	})
 }

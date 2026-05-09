@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/IdrisovMarat/viewer_backend/internal/app/common/server"
+	"github.com/repomz/viewer_backend/internal/app/common/server"
 )
 
-func (h HttpServer) GetBooks(w http.ResponseWriter, r *http.Request) {
+func (h HttpServer) GetStudies(w http.ResponseWriter, r *http.Request) {
 	// filter by category IDs
 	queryCategoryIDs := r.URL.Query()["category_id"]
 	var categoryIDs []int
@@ -30,15 +30,15 @@ func (h HttpServer) GetBooks(w http.ResponseWriter, r *http.Request) {
 		offset = (page - 1) * limit
 	}
 
-	books, err := h.bookService.GetBooks(r.Context(), categoryIDs, limit, offset)
+	studies, err := h.studyService.GetStudies(r.Context(), categoryIDs, limit, offset)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
 	}
 
-	response := make([]BookResponse, 0, len(books))
-	for _, book := range books {
-		response = append(response, toResponseBook(book))
+	response := make([]StudyResponse, 0, len(studies))
+	for _, study := range studies {
+		response = append(response, toResponseStudy(study))
 	}
 
 	server.RespondOK(response, w, r)

@@ -2,12 +2,12 @@ package httpserver
 
 // HttpServer is a HTTP server for ports
 type HttpServer struct {
-	bookService BookService
+	studyService StudyService
 }
 
 // NewHttpServer creates a new HTTP server for ports
-func NewHttpServer(bookService BookService) HttpServer {
+func NewHttpServer(studyService StudyService) HttpServer {
 	return HttpServer{
-		bookService: bookService,
+		studyService: studyService,
 	}
 }

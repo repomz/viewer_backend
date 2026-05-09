@@ -12,11 +12,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/IdrisovMarat/viewer_backend/internal/app/config"
-	"github.com/IdrisovMarat/viewer_backend/internal/app/repository/db"
-	"github.com/IdrisovMarat/viewer_backend/internal/app/repository/pgrepo"
-	"github.com/IdrisovMarat/viewer_backend/internal/app/services"
-	"github.com/IdrisovMarat/viewer_backend/internal/app/transport/httpserver"
+	"github.com/repomz/viewer_backend/internal/app/config"
+	"github.com/repomz/viewer_backend/internal/app/repository/db"
+	"github.com/repomz/viewer_backend/internal/app/repository/pgrepo"
+	"github.com/repomz/viewer_backend/internal/app/services"
+	"github.com/repomz/viewer_backend/internal/app/transport/httpserver"
 )
 
 func main() {
@@ -45,9 +45,9 @@ func run() error {
 
 	// create repositories
 
-	bookRepo := pgrepo.NewBookRepo(pgDB)
+	bookRepo := pgrepo.NewStudyRepo(pgDB)
 
-	bookService := services.NewBookService(bookRepo)
+	bookService := services.NewStudyService(bookRepo)
 
 	// create http server with application injected
 	httpServer := httpserver.NewHttpServer(bookService)
@@ -55,10 +55,10 @@ func run() error {
 	// create http router
 	router := mux.NewRouter()
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("Book Shop API v0.1"))
+		_, _ = w.Write([]byte("DICOM viewer API v0.1"))
 	}).Methods("GET")
 
-	router.HandleFunc("/books", httpServer.GetBooks).Methods(http.MethodGet)
+	router.HandleFunc("/studies", httpServer.GetStudies).Methods(http.MethodGet)
 
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,
