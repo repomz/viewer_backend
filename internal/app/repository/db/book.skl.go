@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/repomz/viewer_backend/internal/app/repository/model"
 )
 
 const getStudies = `-- name: GetStudies :many
@@ -14,15 +16,15 @@ SELECT id, created_at, updated_at, study_id, patient, age, department, name_oper
 ORDER BY created_at ASC
 `
 
-func (q *Queries) GetStudies(ctx context.Context) ([]Study, error) {
+func (q *Queries) GetStudies(ctx context.Context) ([]model.Study, error) {
 	rows, err := q.db.QueryContext(ctx, getStudies)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Study
+	var items []model.Study
 	for rows.Next() {
-		var i Study
+		var i model.Study
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,

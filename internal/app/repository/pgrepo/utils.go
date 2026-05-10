@@ -2,7 +2,7 @@ package pgrepo
 
 import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
-	"github.com/repomz/viewer_backend/internal/app/repository/db"
+	"github.com/repomz/viewer_backend/internal/app/repository/model"
 )
 
 // func domainTostudy(study domain.Study) db.study {
@@ -24,7 +24,7 @@ import (
 // // 	}
 // // }
 
-func studyToDomain(study db.Study) (domain.Study, error) {
+func studyToDomain(study model.Study) (domain.Study, error) {
 	return domain.NewStudy(domain.NewStudyData{
 		ID:             study.ID,
 		CreatedAt:      study.CreatedAt,
