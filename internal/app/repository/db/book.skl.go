@@ -7,9 +7,51 @@ package db
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/repository/model"
 )
+
+const createStudy = `-- name: CreateStudy :one
+INSERT INTO chirps (study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link
+`
+
+type CreateStudyParams struct {
+	StudyID        string
+	Patient        string
+	Age            int
+	Department     string
+	NameOperation  string
+	DescrOperation string
+	TimeBeginning  time.Time
+	TimeDuration   int
+	Surgeon        string
+	DicomLink      string
+}
+
+func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (model.Study, error) {
+	row := q.db.QueryRowContext(ctx, createStudy, arg.StudyID, arg.Patient, arg.Age, arg.Department, arg.NameOperation, arg.DescrOperation, arg.TimeBeginning, arg.TimeDuration, arg.Surgeon, arg.DicomLink)
+	var i model.Study
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StudyID,
+		&i.Patient,
+		&i.Age,
+		&i.Department,
+		&i.NameOperation,
+		&i.DescrOperation,
+		&i.TimeBeginning,
+		&i.TimeDuration,
+		&i.Surgeon,
+		&i.DicomLink,
+	)
+	return i, err
+}
 
 const getStudies = `-- name: GetStudies :many
 SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link FROM studies
@@ -51,4 +93,108 @@ func (q *Queries) GetStudies(ctx context.Context) ([]model.Study, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getStudyByID = `-- name: GetStudyByID :one
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link FROM studies
+WHERE id = $1
+`
+
+func (q *Queries) GetStudyByID(ctx context.Context, id uuid.UUID) (model.Study, error) {
+	row := q.db.QueryRowContext(ctx, getStudyByID, id)
+	var i model.Study
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StudyID,
+		&i.Patient,
+		&i.Age,
+		&i.Department,
+		&i.NameOperation,
+		&i.DescrOperation,
+		&i.TimeBeginning,
+		&i.TimeDuration,
+		&i.Surgeon,
+		&i.DicomLink,
+	)
+	return i, err
+}
+
+const getStydyByPatient = `-- name: GetStydyByPatient :one
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link FROM studies
+WHERE patient = $1
+`
+
+func (q *Queries) GetStydyByPatient(ctx context.Context, patient string) (model.Study, error) {
+	row := q.db.QueryRowContext(ctx, getStudyByID, patient)
+	var i model.Study
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StudyID,
+		&i.Patient,
+		&i.Age,
+		&i.Department,
+		&i.NameOperation,
+		&i.DescrOperation,
+		&i.TimeBeginning,
+		&i.TimeDuration,
+		&i.Surgeon,
+		&i.DicomLink,
+	)
+	return i, err
+}
+
+const deleteStudy = `-- name: DeleteStudy :exec
+DELETE FROM studies 
+WHERE id = $1
+`
+
+func (q *Queries) DeleteChirp(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteStudy, id)
+	return err
+}
+
+const deleteAllStudies = `-- name: DeleteAllStudies :exec
+DELETE FROM studies
+`
+
+func (q *Queries) DeleteAllChirps(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAllStudies)
+	return err
+}
+
+const updateStudy = `-- name: UpdateStudy :one
+UPDATE studies
+SET dicom_link = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link
+`
+
+type UpdateStudyParams struct {
+	ID        uuid.UUID
+	DicomLink string
+}
+
+func (q *Queries) UpdateStudy(ctx context.Context, arg UpdateStudyParams) (model.Study, error) {
+	row := q.db.QueryRowContext(ctx, updateStudy, arg.ID, arg.DicomLink)
+	var i model.Study
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StudyID,
+		&i.Patient,
+		&i.Age,
+		&i.Department,
+		&i.NameOperation,
+		&i.DescrOperation,
+		&i.TimeBeginning,
+		&i.TimeDuration,
+		&i.Surgeon,
+		&i.DicomLink,
+	)
+	return i, err
 }
