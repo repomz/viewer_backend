@@ -45,12 +45,12 @@ func run() error {
 
 	// create repositories
 
-	bookRepo := pgrepo.NewStudyRepo(pgDB)
+	studyRepo := pgrepo.NewStudyRepo(pgDB)
 
-	bookService := services.NewStudyService(bookRepo)
+	studyService := services.NewStudyService(studyRepo)
 
 	// create http server with application injected
-	httpServer := httpserver.NewHttpServer(bookService)
+	httpServer := httpserver.NewHttpServer(studyService)
 
 	// create http router
 	router := mux.NewRouter()
@@ -59,6 +59,10 @@ func run() error {
 	}).Methods("GET")
 
 	router.HandleFunc("/studies", httpServer.GetStudies).Methods(http.MethodGet)
+	router.HandleFunc("/study/{study_id}", httpServer.GetStudy).Methods(http.MethodGet)
+	router.HandleFunc("/study", httpServer.CreateStudy).Methods(http.MethodPost)
+	router.HandleFunc("/study/{study_id}", httpServer.UpdateStudy).Methods(http.MethodPatch)
+	router.HandleFunc("/study/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
 
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,

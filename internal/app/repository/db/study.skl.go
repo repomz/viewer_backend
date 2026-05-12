@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/repomz/viewer_backend/internal/app/repository/model"
+	"github.com/repomz/viewer_backend/internal/app/repository/models"
 )
 
 const createStudy = `-- name: CreateStudy :one
@@ -32,9 +32,9 @@ type CreateStudyParams struct {
 	DicomLink      string
 }
 
-func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (model.Study, error) {
+func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (models.Study, error) {
 	row := q.db.QueryRowContext(ctx, createStudy, arg.StudyID, arg.Patient, arg.Age, arg.Department, arg.NameOperation, arg.DescrOperation, arg.TimeBeginning, arg.TimeDuration, arg.Surgeon, arg.DicomLink)
-	var i model.Study
+	var i models.Study
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -58,15 +58,15 @@ SELECT id, created_at, updated_at, study_id, patient, age, department, name_oper
 ORDER BY created_at ASC
 `
 
-func (q *Queries) GetStudies(ctx context.Context) ([]model.Study, error) {
+func (q *Queries) GetStudies(ctx context.Context) ([]models.Study, error) {
 	rows, err := q.db.QueryContext(ctx, getStudies)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []model.Study
+	var items []models.Study
 	for rows.Next() {
-		var i model.Study
+		var i models.Study
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -100,9 +100,9 @@ SELECT id, created_at, updated_at, study_id, patient, age, department, name_oper
 WHERE id = $1
 `
 
-func (q *Queries) GetStudyByID(ctx context.Context, id uuid.UUID) (model.Study, error) {
+func (q *Queries) GetStudyByID(ctx context.Context, id uuid.UUID) (models.Study, error) {
 	row := q.db.QueryRowContext(ctx, getStudyByID, id)
-	var i model.Study
+	var i models.Study
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -126,9 +126,9 @@ SELECT id, created_at, updated_at, study_id, patient, age, department, name_oper
 WHERE patient = $1
 `
 
-func (q *Queries) GetStydyByPatient(ctx context.Context, patient string) (model.Study, error) {
+func (q *Queries) GetStydyByPatient(ctx context.Context, patient string) (models.Study, error) {
 	row := q.db.QueryRowContext(ctx, getStudyByID, patient)
-	var i model.Study
+	var i models.Study
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -152,7 +152,7 @@ DELETE FROM studies
 WHERE id = $1
 `
 
-func (q *Queries) DeleteChirp(ctx context.Context, id uuid.UUID) error {
+func (q *Queries) DeleteStudy(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteStudy, id)
 	return err
 }
@@ -161,26 +161,26 @@ const deleteAllStudies = `-- name: DeleteAllStudies :exec
 DELETE FROM studies
 `
 
-func (q *Queries) DeleteAllChirps(ctx context.Context) error {
+func (q *Queries) DeleteAllStudies(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deleteAllStudies)
 	return err
 }
 
-const updateStudy = `-- name: UpdateStudy :one
+const updateStudy = `-- name: UpdateStudyDicomLink :one
 UPDATE studies
 SET dicom_link = $2, updated_at = NOW()
 WHERE id = $1
 RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, descr_operation, time_beginning, time_duration, surgeon, dicom_link
 `
 
-type UpdateStudyParams struct {
+type UpdateDicomLinkParams struct {
 	ID        uuid.UUID
 	DicomLink string
 }
 
-func (q *Queries) UpdateStudy(ctx context.Context, arg UpdateStudyParams) (model.Study, error) {
+func (q *Queries) UpdateStudyDicomLink(ctx context.Context, arg UpdateDicomLinkParams) (models.Study, error) {
 	row := q.db.QueryRowContext(ctx, updateStudy, arg.ID, arg.DicomLink)
-	var i model.Study
+	var i models.Study
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,

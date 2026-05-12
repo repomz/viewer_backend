@@ -37,6 +37,21 @@ func (s *StudyRequest) Validate() error {
 	return nil
 }
 
+type StudyDicomLinkRequest struct {
+	ID        uuid.UUID `json:"id"`
+	DicomLink string    `json:"dicom_link"`
+}
+
+func (s *StudyDicomLinkRequest) Validate() error {
+	if s.ID != uuid.Nil {
+		return fmt.Errorf("%w: id", domain.ErrRequired)
+	}
+	if s.DicomLink == "" {
+		return fmt.Errorf("%w: dicom link", domain.ErrRequired)
+	}
+	return nil
+}
+
 type StudyResponse struct {
 	ID             uuid.UUID `json:"id"`
 	CreatedAt      time.Time `json:"created_at"`
