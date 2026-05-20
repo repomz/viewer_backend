@@ -133,17 +133,21 @@ func (h HttpServer) GetStudyByPatient(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	rawPatient := vars["patient"]
 	// rawPatient := r.URL.Query().Get("patient")
-
+	patientRequest := httpmodels.PatientFilter{
+		Patient: rawPatient,
+	}
 	// Инициализируем фильтр и нормализуем его
-	filter := domain.PatientFilter(rawPatient).Normalize()
+	// patientRequest := patientFilter.Normalize()
 
 	// Валидируем
-	if err := filter.Validate(); err != nil {
+	if err := patientRequest.Validate(); err != nil {
 		server.BadRequest("invalid patient request", err, w, r)
 		return
 	}
 
-	study, err := h.studyService.GetStudyByPatient(r.Context(), filter)
+	patientFilter := toDomainPatient(patientRequest) // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	study, err := h.studyService.GetStudyByPatient(r.Context(), patientFilter)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			server.NotFound("Study-not-found", err, w, r)
@@ -161,7 +165,7 @@ func (h HttpServer) GetStudyByPatient(w http.ResponseWriter, r *http.Request) {
 // CreateStudy creates a new Study
 func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 	// Получаем study запрос
-	var studyRequest StudyRequest
+	var studyRequest httpmodels.StudyRequest
 	if err := json.NewDecoder(r.Body).Decode(&studyRequest); err != nil {
 		server.BadRequest("invalid-json", err, w, r)
 		return

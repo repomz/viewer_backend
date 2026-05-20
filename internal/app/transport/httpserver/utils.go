@@ -40,3 +40,9 @@ func toDomainStudy(studyRequest httpmodels.StudyRequest) (domain.Study, error) {
 		DicomLink:      studyRequest.DicomLink,
 	})
 }
+
+func toDomainPatient(patientRequest httpmodels.PatientFilter) domain.PatientFilter {
+	return domain.PatientFilter{
+		Patient: patientRequest.Patient,
+	}
+}

@@ -7,15 +7,15 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/repomz/viewer_backend/internal/app/angiodb"
 	"github.com/repomz/viewer_backend/internal/app/domain"
-	"github.com/repomz/viewer_backend/internal/app/repository/db"
 )
 
 type StudyRepo struct {
-	query *db.Queries
+	query *angiodb.Queries
 }
 
-func NewStudyRepo(qr *db.Queries) *StudyRepo {
+func NewStudyRepo(qr *angiodb.Queries) *StudyRepo {
 	return &StudyRepo{
 		query: qr,
 	}
@@ -85,11 +85,11 @@ func (s StudyRepo) GetStudy(ctx context.Context, id uuid.UUID) (domain.Study, er
 
 func (s StudyRepo) GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error) {
 
-	if id == uuid.Nil {
+	if patient.Patient == "" {
 		return domain.Study{}, fmt.Errorf("%w: id", domain.ErrRequired)
 	}
 
-	study, err := s.query.GetStudyByID(ctx, id)
+	study, err := s.query.GetStudyByPatient(ctx, patient.Patient)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Study{}, domain.ErrNotFound

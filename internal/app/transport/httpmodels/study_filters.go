@@ -9,10 +9,9 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
-// Самостоятельные типы фильтров на основе строк
-type PatientFilter string
-type SurgeonFilter string
-type StudyTypeFilter string
+type PatientFilter struct {
+	Patient string
+}
 
 // Список разрешенных фамилий хирургов в нижнем регистре
 var allowedSurgeons = map[string]bool{
@@ -36,12 +35,12 @@ var allowedStudyTypes = map[string]bool{
 }
 
 // Validate проверяет имя пациента отдельно от других структур
-func (f PatientFilter) Validate() error {
-	if f == "" {
+func (f *PatientFilter) Validate() error {
+	if f.Patient == "" {
 		return nil
 	}
 
-	runes := []rune(string(f))
+	runes := []rune(string(f.Patient))
 	if len(runes) < 2 {
 		return domain.ErrPatientNameTooShort
 	}
@@ -55,20 +54,20 @@ func (f PatientFilter) Validate() error {
 }
 
 // Normalize возвращает очищенную строку (без пробелов по краям)
-func (f PatientFilter) Normalize() PatientFilter {
-	return PatientFilter(strings.TrimSpace(string(f)))
-}
+// func (f *PatientFilter) Normalize() string {
+// 	return strings.TrimSpace(string(f.Patient))
+// }
 
 // IsEmpty проверяет, пустой ли фильтр пациента
 func (f PatientFilter) IsEmpty() bool {
-	return f == ""
+	return f.Patient == ""
 }
 
 // StudyFilter для фильтрации исследований по дате, хирургу или типу операции
 type StudyFilter struct {
 	StudyDate *time.Time
-	Surgeon   SurgeonFilter
-	StudyType StudyTypeFilter
+	Surgeon   string
+	StudyType string
 }
 
 // Validate проверяет только параметры исследования
@@ -97,10 +96,10 @@ func (f *StudyFilter) Validate() error {
 // Normalize приводит параметры исследования к нижнему регистру и удаляет пробелы
 func (f *StudyFilter) Normalize() {
 	if f.Surgeon != "" {
-		f.Surgeon = SurgeonFilter(strings.ToLower(strings.TrimSpace(string(f.Surgeon))))
+		f.Surgeon = strings.ToLower(strings.TrimSpace(string(f.Surgeon)))
 	}
 	if f.StudyType != "" {
-		f.StudyType = StudyTypeFilter(strings.ToLower(strings.TrimSpace(string(f.StudyType))))
+		f.StudyType = strings.ToLower(strings.TrimSpace(string(f.StudyType)))
 	}
 }
 
