@@ -2,10 +2,11 @@ package httpserver
 
 import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
+	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
-func toResponseStudy(study domain.Study) StudyResponse {
-	return StudyResponse{
+func toResponseStudy(study domain.Study) httpmodels.StudyResponse {
+	return httpmodels.StudyResponse{
 		ID:             study.ID(),
 		CreatedAt:      study.CreatedAt(),
 		UpdatedAt:      study.UpdatedAt(),
@@ -22,7 +23,7 @@ func toResponseStudy(study domain.Study) StudyResponse {
 	}
 }
 
-func toDomainStudy(studyRequest StudyRequest) (domain.Study, error) {
+func toDomainStudy(studyRequest httpmodels.StudyRequest) (domain.Study, error) {
 	return domain.NewStudy(domain.NewStudyData{
 		ID:             studyRequest.ID,
 		CreatedAt:      studyRequest.CreatedAt,

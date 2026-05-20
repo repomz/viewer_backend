@@ -10,4 +10,9 @@ var (
 	ErrInvalidUserID   = errors.New("invalid user ID")
 	ErrInvalidStudyIDs = errors.New("invalid study IDs")
 	ErrNoUserInContext = errors.New("no user in context")
+
+	ErrPatientNameTooShort = errors.New("patient name too short")
+	ErrPatientNameInvalid  = errors.New("patient name contains invalid characters")
+	ErrSurgeonNotFound     = errors.New("surgeon not found")
+	ErrStudyTypeNotFound   = errors.New("study type not found")
 )

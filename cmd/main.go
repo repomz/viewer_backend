@@ -13,10 +13,10 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/repomz/viewer_backend/internal/app/config"
-	"github.com/repomz/viewer_backend/internal/app/repository/db"
 	"github.com/repomz/viewer_backend/internal/app/repository/pgrepo"
 	"github.com/repomz/viewer_backend/internal/app/services"
 	"github.com/repomz/viewer_backend/internal/app/transport/httpserver"
+	"github.com/repomz/viewer_backend/internal/db"
 )
 
 func main() {
@@ -59,6 +59,7 @@ func run() error {
 	}).Methods("GET")
 
 	router.HandleFunc("/studies", httpServer.GetStudies).Methods(http.MethodGet)
+	router.HandleFunc("/studies", httpServer.DeleteStudies).Methods(http.MethodDelete)
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudy).Methods(http.MethodGet)
 	router.HandleFunc("/study", httpServer.CreateStudy).Methods(http.MethodPost)
 	router.HandleFunc("/study/{study_id}", httpServer.UpdateStudy).Methods(http.MethodPatch)

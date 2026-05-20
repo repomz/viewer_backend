@@ -23,6 +23,10 @@ func (s StudyService) GetStudy(ctx context.Context, id uuid.UUID) (domain.Study,
 	return s.repo.GetStudy(ctx, id)
 }
 
+func (s StudyService) GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error) {
+	return s.repo.GetStudyByPatient(ctx, patient)
+}
+
 func (s StudyService) CreateStudy(ctx context.Context, study domain.Study) (domain.Study, error) {
 	return s.repo.CreateStudy(ctx, study)
 }
@@ -32,6 +36,10 @@ func (s StudyService) UpdateStudyDicomLink(ctx context.Context, study domain.Stu
 }
 
 func (s StudyService) DeleteStudy(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteStudy(ctx, id)
+}
+
+func (s StudyService) DeleteAllStudies(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteStudy(ctx, id)
 }
 

@@ -1,4 +1,4 @@
-package httpserver
+package httpmodels
 
 import (
 	"fmt"

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/repomz/viewer_backend/internal/app/angiodb"
 )
 
 // Dial creates new database connection to postgres
-func Dial(dsn string) (*Queries, error) {
+func Dial(dsn string) (*angiodb.Queries, error) {
 	if dsn == "" {
 		return nil, errors.New("no postgres DSN provided")
 	}
@@ -27,7 +27,6 @@ func Dial(dsn string) (*Queries, error) {
 		return nil, fmt.Errorf("db.Ping failed: %w", err)
 	}
 
-	dbQueries := New(db)
-
+	dbQueries := angiodb.New(db)
 	return dbQueries, nil
 }

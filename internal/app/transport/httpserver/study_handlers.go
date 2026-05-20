@@ -5,14 +5,17 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/repomz/viewer_backend/internal/app/common/server"
 	"github.com/repomz/viewer_backend/internal/app/domain"
+
+	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
-func (h HttpServer) GetStudies(w http.ResponseWriter, r *http.Request) {
+func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
 	// filter by category IDs
 	queryCategoryIDs := r.URL.Query()["category_id"]
 	var categoryIDs []int
@@ -41,6 +44,48 @@ func (h HttpServer) GetStudies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	response := make([]httpmodels.StudyResponse, 0, len(studies))
+	for _, study := range studies {
+		response = append(response, toResponseStudy(study))
+	}
+
+	server.RespondOK(response, w, r)
+}
+
+func (h HttpServer) GetStudiesByFilter(w http.ResponseWriter, r *http.Request) {
+	// filter by category IDs
+	query := r.URL.Query()
+	filter := domain.StudyFilter{
+		Surgeon:   domain.SurgeonFilter(query.Get("surgeon")),
+		StudyType: domain.StudyTypeFilter(query.Get("study_type")),
+	}
+
+	// Парсинг даты (с обработкой ошибки формата)
+	if dateStr := query.Get("study_date"); dateStr != "" {
+		// Ожидаем формат ISO (например, 2026-05-19)
+		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			server.BadRequest("invalid study_date format, use YYYY-MM-DD", err, w, r)
+			return
+		}
+		filter.StudyDate = &parsedDate
+	}
+
+	// Нормализуем данные перед валидацией
+	filter.Normalize()
+
+	// Валидируем фильтр исследований
+	if err := filter.Validate(); err != nil {
+		server.BadRequest("validation error", err, w, r)
+		return
+	}
+
+	studies, err := h.studyService.GetStudies(r.Context(), categoryIDs, limit, offset)
+	if err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+
 	response := make([]StudyResponse, 0, len(studies))
 	for _, study := range studies {
 		response = append(response, toResponseStudy(study))
@@ -49,8 +94,8 @@ func (h HttpServer) GetStudies(w http.ResponseWriter, r *http.Request) {
 	server.RespondOK(response, w, r)
 }
 
-// GetBook returns a book by ID
-func (h HttpServer) GetStudy(w http.ResponseWriter, r *http.Request) {
+// GetStudy returns a Study by ID
+func (h HttpServer) GetStudyByID(w http.ResponseWriter, r *http.Request) {
 	// Получаем study ID из пути
 	vars := mux.Vars(r)
 	studyIDstr := vars["study_id"]
@@ -70,7 +115,7 @@ func (h HttpServer) GetStudy(w http.ResponseWriter, r *http.Request) {
 	study, err := h.studyService.GetStudy(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			server.NotFound("book-not-found", err, w, r)
+			server.NotFound("Study-not-found", err, w, r)
 			return
 		}
 		server.RespondWithError(err, w, r)
@@ -82,7 +127,38 @@ func (h HttpServer) GetStudy(w http.ResponseWriter, r *http.Request) {
 	server.RespondOK(response, w, r)
 }
 
-// CreateBook creates a new book
+// GetStudy returns a Study by patient filter
+func (h HttpServer) GetStudyByPatient(w http.ResponseWriter, r *http.Request) {
+	// Получаем study ID из пути
+	vars := mux.Vars(r)
+	rawPatient := vars["patient"]
+	// rawPatient := r.URL.Query().Get("patient")
+
+	// Инициализируем фильтр и нормализуем его
+	filter := domain.PatientFilter(rawPatient).Normalize()
+
+	// Валидируем
+	if err := filter.Validate(); err != nil {
+		server.BadRequest("invalid patient request", err, w, r)
+		return
+	}
+
+	study, err := h.studyService.GetStudyByPatient(r.Context(), filter)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			server.NotFound("Study-not-found", err, w, r)
+			return
+		}
+		server.RespondWithError(err, w, r)
+		return
+	}
+
+	response := toResponseStudy(study)
+
+	server.RespondOK(response, w, r)
+}
+
+// CreateStudy creates a new Study
 func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 	// Получаем study запрос
 	var studyRequest StudyRequest
@@ -103,18 +179,18 @@ func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	insertedBook, err := h.studyService.CreateStudy(r.Context(), study)
+	insertedStudy, err := h.studyService.CreateStudy(r.Context(), study)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
 	}
 
-	response := toResponseStudy(insertedBook)
+	response := toResponseStudy(insertedStudy)
 
 	server.RespondOK(response, w, r)
 }
 
-// UpdateBook updates a book by ID
+// UpdateStudy updates a Study by ID
 func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 	// Получаем study ID из пути
 	vars := mux.Vars(r)
@@ -149,7 +225,7 @@ func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 	_, err = h.studyService.GetStudy(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			server.NotFound("book-not-found", err, w, r)
+			server.NotFound("Study-not-found", err, w, r)
 			return
 		}
 		server.RespondWithError(err, w, r)
@@ -176,7 +252,7 @@ func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 	server.RespondOK(response, w, r)
 }
 
-// DeleteBook deletes a book by ID
+// DeleteStudy deletes a Study by ID
 func (h HttpServer) DeleteStudy(w http.ResponseWriter, r *http.Request) {
 	// Получаем study ID из пути
 	vars := mux.Vars(r)
@@ -197,7 +273,7 @@ func (h HttpServer) DeleteStudy(w http.ResponseWriter, r *http.Request) {
 	_, err = h.studyService.GetStudy(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			server.NotFound("book-not-found", err, w, r)
+			server.NotFound("Study-not-found", err, w, r)
 			return
 		}
 		server.RespondWithError(err, w, r)
@@ -207,7 +283,7 @@ func (h HttpServer) DeleteStudy(w http.ResponseWriter, r *http.Request) {
 	err = h.studyService.DeleteStudy(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			server.NotFound("book-not-found", err, w, r)
+			server.NotFound("Study-not-found", err, w, r)
 			return
 		}
 		server.RespondWithError(err, w, r)

@@ -2,7 +2,6 @@ package pgrepo
 
 import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
-	"github.com/repomz/viewer_backend/internal/app/repository/db"
 	"github.com/repomz/viewer_backend/internal/app/repository/models"
 )
 
@@ -24,8 +23,8 @@ func domainToStudy(study domain.Study) models.Study {
 	}
 }
 
-func domainToStudyParams(study domain.Study) db.CreateStudyParams {
-	return db.CreateStudyParams{
+func domainToStudyParams(study domain.Study) models.CreateStudyParams {
+	return models.CreateStudyParams{
 		StudyID:        study.StudyID(),
 		Patient:        study.Patient(),
 		Age:            study.Age(),
@@ -39,8 +38,8 @@ func domainToStudyParams(study domain.Study) db.CreateStudyParams {
 	}
 }
 
-func domainToDicomLinkParams(study domain.Study) db.UpdateDicomLinkParams {
-	return db.UpdateDicomLinkParams{
+func domainToDicomLinkParams(study domain.Study) models.UpdateDicomLinkParams {
+	return models.UpdateDicomLinkParams{
 		ID:        study.ID(),
 		DicomLink: study.DicomLink(),
 	}
