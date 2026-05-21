@@ -20,7 +20,7 @@ func NewStudyService(repo StudyRepository) StudyService {
 }
 
 func (s StudyService) GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study, error) {
-	return s.repo.GetStudy(ctx, id)
+	return s.repo.GetStudyByID(ctx, id)
 }
 
 func (s StudyService) GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error) {
