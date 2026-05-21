@@ -19,6 +19,8 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/repository/pgrepo"
 	"github.com/repomz/viewer_backend/internal/app/services"
 	"github.com/repomz/viewer_backend/internal/app/transport/httpserver"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
