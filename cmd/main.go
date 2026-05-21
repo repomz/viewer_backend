@@ -84,12 +84,11 @@ func run() error {
 	router.HandleFunc("/studies", httpServer.GetAllStudies).Methods(http.MethodGet)
 	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
-	router.HandleFunc("/study/{patient}", httpServer.GetStudyByID).Methods(http.MethodGet)
-	router.HandleFunc("/studies/{filter}", httpServer.GetStudiesByFilter).Methods(http.MethodGet)
+	router.HandleFunc("/study/patient/{patient}", httpServer.GetStudyByPatient).Methods(http.MethodGet)
+	router.HandleFunc("/studies/search", httpServer.GetStudiesByFilter).Methods(http.MethodGet)
 	router.HandleFunc("/study", httpServer.CreateStudy).Methods(http.MethodPost)
 	router.HandleFunc("/study/{study_id}", httpServer.UpdateStudy).Methods(http.MethodPatch)
 	router.HandleFunc("/study/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
-	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
 
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,

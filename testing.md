@@ -37,42 +37,42 @@ curl -v -X DELETE http://localhost:8080/studies
 # ==========================================
 
 # Поиск по дате
-curl -s "http://localhost:8080/studies?study_date=2025-05-13"| jq 'length'
+curl -s "http://localhost:8080/studies/search?study_date=2025-05-13" | jq 'length'
 
 # Поиск по хирургу (идрисов)
-curl -s "http://localhost:8080/studies?surgeon=идрисов"| jq 'length'
+curl -s "http://localhost:8080/studies/search?surgeon=идрисов"| jq 'length'
 
 # Поиск по типу операции (КАГ)
-curl -s "http://localhost:8080/studies?study_type=каг"| jq 'length'
+curl -s "http://localhost:8080/studies/search?study_type=каг" | jq 'length'
 
 # Поиск по дате + хирург
-curl -s "http://localhost:8080/studies?study_date=2025-05-13&surgeon=идрисов"| jq 'length'
+curl -s "http://localhost:8080/studies/search?study_date=2025-05-13&surgeon=идрисов" | jq 'length'
 
 # Поиск по дате + тип операции
-curl -s "http://localhost:8080/studies?study_date=2025-05-13&study_type=цаг" | jq 'length'
+curl -s "http://localhost:8080/studies/search?study_date=2025-05-13&study_type=цаг" | jq 'length'
 
 # Поиск по хирургу + тип операции
-curl -s "http://localhost:8080/studies?surgeon=шпилевой&study_type=стент_кор"| jq 'length'
+curl -s "http://localhost:8080/studies/search?surgeon=шпилевой&study_type=стент_кор" | jq 'length'
 
 # Поиск по всем трём фильтрам
-curl -s "http://localhost:8080/studies?study_date=2025-05-13&surgeon=идрисов&study_type=каг" | jq 'length'
+curl -s "http://localhost:8080/studies/search?study_date=2025-05-13&surgeon=идрисов&study_type=каг" | jq 'length'
 
 # ==========================================
 # Создание нового исследования
 # ==========================================
-curl -v -X POST -H "Content-Type: application/json" \
+curl -s -X POST -H "Content-Type: application/json" \
 -d '{
-  "study_id": "STUDY-001",
-  "patient": "Иванов И.И.",
+  "study_id": "STUDY-101",
+  "patient": "Иван",
   "age": 65,
   "department": "ОХМДиЛ",
   "name_operation": "Коронарная ангиография",
   "study_type": "каг",
   "descr_operation": "Плановое исследование",
-  "time_beginning": "2025-05-13 10:30",
+  "time_beginning": "2025-05-13 10:31",
   "time_duration": 45,
   "surgeon": "идрисов",
-  "dicom_link": "https://pacs/dicom/123"
+  "dicom_link": "https://pacs/dicom/223"
 }' \
 http://localhost:8080/study
 
