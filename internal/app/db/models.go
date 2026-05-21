@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package angiodb
+package db
 
 import (
 	"database/sql"

@@ -19,7 +19,7 @@ func NewStudyService(repo StudyRepository) StudyService {
 	}
 }
 
-func (s StudyService) GetStudy(ctx context.Context, id uuid.UUID) (domain.Study, error) {
+func (s StudyService) GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study, error) {
 	return s.repo.GetStudy(ctx, id)
 }
 
@@ -39,10 +39,14 @@ func (s StudyService) DeleteStudy(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteStudy(ctx, id)
 }
 
-func (s StudyService) DeleteAllStudies(ctx context.Context, id uuid.UUID) error {
-	return s.repo.DeleteStudy(ctx, id)
+func (s StudyService) DeleteAllStudies(ctx context.Context) error {
+	return s.repo.DeleteAllStudies(ctx)
 }
 
-func (s StudyService) GetStudies(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Study, error) {
-	return s.repo.GetStudies(ctx, categoryIDs, limit, offset)
+func (s StudyService) GetAllStudies(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Study, error) {
+	return s.repo.GetAllStudies(ctx, categoryIDs, limit, offset)
+}
+
+func (s StudyService) GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error) {
+	return s.repo.GetStudiesByFilter(ctx, filter)
 }

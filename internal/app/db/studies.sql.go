@@ -3,7 +3,7 @@
 //   sqlc v1.30.0
 // source: studies.sql
 
-package angiodb
+package db
 
 import (
 	"context"
@@ -11,108 +11,6 @@ import (
 
 	"github.com/google/uuid"
 )
-
-const countStudiesByDate = `-- name: CountStudiesByDate :one
-
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND deleted = false
-`
-
-// ==========================================
-// Подсчёт количества (только активные)
-// ==========================================
-func (q *Queries) CountStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesByDateStmt, countStudiesByDate, timeBeginning)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countStudiesByDateAndStudyType = `-- name: CountStudiesByDateAndStudyType :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND study_type = $2 AND deleted = false
-`
-
-type CountStudiesByDateAndStudyTypeParams struct {
-	TimeBeginning sql.NullTime `json:"time_beginning"`
-	StudyType     string       `json:"study_type"`
-}
-
-func (q *Queries) CountStudiesByDateAndStudyType(ctx context.Context, arg CountStudiesByDateAndStudyTypeParams) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesByDateAndStudyTypeStmt, countStudiesByDateAndStudyType, arg.TimeBeginning, arg.StudyType)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countStudiesByDateAndSurgeon = `-- name: CountStudiesByDateAndSurgeon :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND surgeon = $2 AND deleted = false
-`
-
-type CountStudiesByDateAndSurgeonParams struct {
-	TimeBeginning sql.NullTime `json:"time_beginning"`
-	Surgeon       string       `json:"surgeon"`
-}
-
-func (q *Queries) CountStudiesByDateAndSurgeon(ctx context.Context, arg CountStudiesByDateAndSurgeonParams) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesByDateAndSurgeonStmt, countStudiesByDateAndSurgeon, arg.TimeBeginning, arg.Surgeon)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countStudiesByDateSurgeonStudyType = `-- name: CountStudiesByDateSurgeonStudyType :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND surgeon = $2 AND study_type = $3 AND deleted = false
-`
-
-type CountStudiesByDateSurgeonStudyTypeParams struct {
-	TimeBeginning sql.NullTime `json:"time_beginning"`
-	Surgeon       string       `json:"surgeon"`
-	StudyType     string       `json:"study_type"`
-}
-
-func (q *Queries) CountStudiesByDateSurgeonStudyType(ctx context.Context, arg CountStudiesByDateSurgeonStudyTypeParams) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesByDateSurgeonStudyTypeStmt, countStudiesByDateSurgeonStudyType, arg.TimeBeginning, arg.Surgeon, arg.StudyType)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countStudiesByStudyType = `-- name: CountStudiesByStudyType :one
-SELECT COUNT(*) FROM studies WHERE study_type = $1 AND deleted = false
-`
-
-func (q *Queries) CountStudiesByStudyType(ctx context.Context, studyType string) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesByStudyTypeStmt, countStudiesByStudyType, studyType)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countStudiesBySurgeon = `-- name: CountStudiesBySurgeon :one
-SELECT COUNT(*) FROM studies WHERE surgeon = $1 AND deleted = false
-`
-
-func (q *Queries) CountStudiesBySurgeon(ctx context.Context, surgeon string) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesBySurgeonStmt, countStudiesBySurgeon, surgeon)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countStudiesBySurgeonAndStudyType = `-- name: CountStudiesBySurgeonAndStudyType :one
-SELECT COUNT(*) FROM studies WHERE surgeon = $1 AND study_type = $2 AND deleted = false
-`
-
-type CountStudiesBySurgeonAndStudyTypeParams struct {
-	Surgeon   string `json:"surgeon"`
-	StudyType string `json:"study_type"`
-}
-
-func (q *Queries) CountStudiesBySurgeonAndStudyType(ctx context.Context, arg CountStudiesBySurgeonAndStudyTypeParams) (int64, error) {
-	row := q.queryRow(ctx, q.countStudiesBySurgeonAndStudyTypeStmt, countStudiesBySurgeonAndStudyType, arg.Surgeon, arg.StudyType)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
 
 const createStudy = `-- name: CreateStudy :one
 INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, time_beginning, time_duration, surgeon, dicom_link)
@@ -215,15 +113,11 @@ func (q *Queries) GetStudies(ctx context.Context) ([]Study, error) {
 }
 
 const getStudiesByDate = `-- name: GetStudiesByDate :many
-
 SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE time_beginning::date = $1 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
 
-// ==========================================
-// Фильтрация
-// ==========================================
 func (q *Queries) GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) ([]Study, error) {
 	rows, err := q.query(ctx, q.getStudiesByDateStmt, getStudiesByDate, timeBeginning)
 	if err != nil {

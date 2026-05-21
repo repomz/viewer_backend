@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package angiodb
+package db
 
 import (
 	"context"
@@ -24,27 +24,6 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
-	if q.countStudiesByDateStmt, err = db.PrepareContext(ctx, countStudiesByDate); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesByDate: %w", err)
-	}
-	if q.countStudiesByDateAndStudyTypeStmt, err = db.PrepareContext(ctx, countStudiesByDateAndStudyType); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesByDateAndStudyType: %w", err)
-	}
-	if q.countStudiesByDateAndSurgeonStmt, err = db.PrepareContext(ctx, countStudiesByDateAndSurgeon); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesByDateAndSurgeon: %w", err)
-	}
-	if q.countStudiesByDateSurgeonStudyTypeStmt, err = db.PrepareContext(ctx, countStudiesByDateSurgeonStudyType); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesByDateSurgeonStudyType: %w", err)
-	}
-	if q.countStudiesByStudyTypeStmt, err = db.PrepareContext(ctx, countStudiesByStudyType); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesByStudyType: %w", err)
-	}
-	if q.countStudiesBySurgeonStmt, err = db.PrepareContext(ctx, countStudiesBySurgeon); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesBySurgeon: %w", err)
-	}
-	if q.countStudiesBySurgeonAndStudyTypeStmt, err = db.PrepareContext(ctx, countStudiesBySurgeonAndStudyType); err != nil {
-		return nil, fmt.Errorf("error preparing query CountStudiesBySurgeonAndStudyType: %w", err)
-	}
 	if q.createStudyStmt, err = db.PrepareContext(ctx, createStudy); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateStudy: %w", err)
 	}
@@ -92,41 +71,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
-	if q.countStudiesByDateStmt != nil {
-		if cerr := q.countStudiesByDateStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesByDateStmt: %w", cerr)
-		}
-	}
-	if q.countStudiesByDateAndStudyTypeStmt != nil {
-		if cerr := q.countStudiesByDateAndStudyTypeStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesByDateAndStudyTypeStmt: %w", cerr)
-		}
-	}
-	if q.countStudiesByDateAndSurgeonStmt != nil {
-		if cerr := q.countStudiesByDateAndSurgeonStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesByDateAndSurgeonStmt: %w", cerr)
-		}
-	}
-	if q.countStudiesByDateSurgeonStudyTypeStmt != nil {
-		if cerr := q.countStudiesByDateSurgeonStudyTypeStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesByDateSurgeonStudyTypeStmt: %w", cerr)
-		}
-	}
-	if q.countStudiesByStudyTypeStmt != nil {
-		if cerr := q.countStudiesByStudyTypeStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesByStudyTypeStmt: %w", cerr)
-		}
-	}
-	if q.countStudiesBySurgeonStmt != nil {
-		if cerr := q.countStudiesBySurgeonStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesBySurgeonStmt: %w", cerr)
-		}
-	}
-	if q.countStudiesBySurgeonAndStudyTypeStmt != nil {
-		if cerr := q.countStudiesBySurgeonAndStudyTypeStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing countStudiesBySurgeonAndStudyTypeStmt: %w", cerr)
-		}
-	}
 	if q.createStudyStmt != nil {
 		if cerr := q.createStudyStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createStudyStmt: %w", cerr)
@@ -234,55 +178,41 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                                     DBTX
-	tx                                     *sql.Tx
-	countStudiesByDateStmt                 *sql.Stmt
-	countStudiesByDateAndStudyTypeStmt     *sql.Stmt
-	countStudiesByDateAndSurgeonStmt       *sql.Stmt
-	countStudiesByDateSurgeonStudyTypeStmt *sql.Stmt
-	countStudiesByStudyTypeStmt            *sql.Stmt
-	countStudiesBySurgeonStmt              *sql.Stmt
-	countStudiesBySurgeonAndStudyTypeStmt  *sql.Stmt
-	createStudyStmt                        *sql.Stmt
-	getStudiesStmt                         *sql.Stmt
-	getStudiesByDateStmt                   *sql.Stmt
-	getStudiesByDateAndStudyTypeStmt       *sql.Stmt
-	getStudiesByDateAndSurgeonStmt         *sql.Stmt
-	getStudiesByDateSurgeonStudyTypeStmt   *sql.Stmt
-	getStudiesByStudyTypeStmt              *sql.Stmt
-	getStudiesBySurgeonStmt                *sql.Stmt
-	getStudiesBySurgeonAndStudyTypeStmt    *sql.Stmt
-	getStudyByIDStmt                       *sql.Stmt
-	getStudyByPatientStmt                  *sql.Stmt
-	softDeleteAllStudiesStmt               *sql.Stmt
-	softDeleteStudyStmt                    *sql.Stmt
-	updateStudyDicomLinkStmt               *sql.Stmt
+	db                                   DBTX
+	tx                                   *sql.Tx
+	createStudyStmt                      *sql.Stmt
+	getStudiesStmt                       *sql.Stmt
+	getStudiesByDateStmt                 *sql.Stmt
+	getStudiesByDateAndStudyTypeStmt     *sql.Stmt
+	getStudiesByDateAndSurgeonStmt       *sql.Stmt
+	getStudiesByDateSurgeonStudyTypeStmt *sql.Stmt
+	getStudiesByStudyTypeStmt            *sql.Stmt
+	getStudiesBySurgeonStmt              *sql.Stmt
+	getStudiesBySurgeonAndStudyTypeStmt  *sql.Stmt
+	getStudyByIDStmt                     *sql.Stmt
+	getStudyByPatientStmt                *sql.Stmt
+	softDeleteAllStudiesStmt             *sql.Stmt
+	softDeleteStudyStmt                  *sql.Stmt
+	updateStudyDicomLinkStmt             *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                                     tx,
-		tx:                                     tx,
-		countStudiesByDateStmt:                 q.countStudiesByDateStmt,
-		countStudiesByDateAndStudyTypeStmt:     q.countStudiesByDateAndStudyTypeStmt,
-		countStudiesByDateAndSurgeonStmt:       q.countStudiesByDateAndSurgeonStmt,
-		countStudiesByDateSurgeonStudyTypeStmt: q.countStudiesByDateSurgeonStudyTypeStmt,
-		countStudiesByStudyTypeStmt:            q.countStudiesByStudyTypeStmt,
-		countStudiesBySurgeonStmt:              q.countStudiesBySurgeonStmt,
-		countStudiesBySurgeonAndStudyTypeStmt:  q.countStudiesBySurgeonAndStudyTypeStmt,
-		createStudyStmt:                        q.createStudyStmt,
-		getStudiesStmt:                         q.getStudiesStmt,
-		getStudiesByDateStmt:                   q.getStudiesByDateStmt,
-		getStudiesByDateAndStudyTypeStmt:       q.getStudiesByDateAndStudyTypeStmt,
-		getStudiesByDateAndSurgeonStmt:         q.getStudiesByDateAndSurgeonStmt,
-		getStudiesByDateSurgeonStudyTypeStmt:   q.getStudiesByDateSurgeonStudyTypeStmt,
-		getStudiesByStudyTypeStmt:              q.getStudiesByStudyTypeStmt,
-		getStudiesBySurgeonStmt:                q.getStudiesBySurgeonStmt,
-		getStudiesBySurgeonAndStudyTypeStmt:    q.getStudiesBySurgeonAndStudyTypeStmt,
-		getStudyByIDStmt:                       q.getStudyByIDStmt,
-		getStudyByPatientStmt:                  q.getStudyByPatientStmt,
-		softDeleteAllStudiesStmt:               q.softDeleteAllStudiesStmt,
-		softDeleteStudyStmt:                    q.softDeleteStudyStmt,
-		updateStudyDicomLinkStmt:               q.updateStudyDicomLinkStmt,
+		db:                                   tx,
+		tx:                                   tx,
+		createStudyStmt:                      q.createStudyStmt,
+		getStudiesStmt:                       q.getStudiesStmt,
+		getStudiesByDateStmt:                 q.getStudiesByDateStmt,
+		getStudiesByDateAndStudyTypeStmt:     q.getStudiesByDateAndStudyTypeStmt,
+		getStudiesByDateAndSurgeonStmt:       q.getStudiesByDateAndSurgeonStmt,
+		getStudiesByDateSurgeonStudyTypeStmt: q.getStudiesByDateSurgeonStudyTypeStmt,
+		getStudiesByStudyTypeStmt:            q.getStudiesByStudyTypeStmt,
+		getStudiesBySurgeonStmt:              q.getStudiesBySurgeonStmt,
+		getStudiesBySurgeonAndStudyTypeStmt:  q.getStudiesBySurgeonAndStudyTypeStmt,
+		getStudyByIDStmt:                     q.getStudyByIDStmt,
+		getStudyByPatientStmt:                q.getStudyByPatientStmt,
+		softDeleteAllStudiesStmt:             q.softDeleteAllStudiesStmt,
+		softDeleteStudyStmt:                  q.softDeleteStudyStmt,
+		updateStudyDicomLinkStmt:             q.updateStudyDicomLinkStmt,
 	}
 }

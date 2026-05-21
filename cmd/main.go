@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,10 +15,10 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/repomz/viewer_backend/internal/app/config"
+	"github.com/repomz/viewer_backend/internal/app/db"
 	"github.com/repomz/viewer_backend/internal/app/repository/pgrepo"
 	"github.com/repomz/viewer_backend/internal/app/services"
 	"github.com/repomz/viewer_backend/internal/app/transport/httpserver"
-	"github.com/repomz/viewer_backend/internal/db"
 )
 
 func main() {
@@ -26,11 +28,30 @@ func main() {
 	os.Exit(0)
 }
 
+func Dial(dsn string) (*db.Queries, error) {
+	if dsn == "" {
+		return nil, errors.New("no postgres DSN provided")
+	}
+
+	dbase, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open failed: %w", err)
+	}
+
+	dbase.SetMaxIdleConns(10)
+	dbase.SetMaxIdleConns(10)
+	dbase.SetConnMaxLifetime(1 * time.Minute)
+
+	dbQueries := db.New(dbase)
+
+	return dbQueries, nil
+}
+
 func run() error {
 	// read config from env
 	cfg := config.Read()
 
-	pgDB, err := db.Dial(cfg.DB_DSN)
+	pgDB, err := Dial(cfg.DB_DSN)
 	if err != nil {
 		return fmt.Errorf("pg.Dial failed: %w", err)
 	}
@@ -58,12 +79,15 @@ func run() error {
 		_, _ = w.Write([]byte("DICOM viewer API v0.1"))
 	}).Methods("GET")
 
-	router.HandleFunc("/studies", httpServer.GetStudies).Methods(http.MethodGet)
-	router.HandleFunc("/studies", httpServer.DeleteStudies).Methods(http.MethodDelete)
-	router.HandleFunc("/study/{study_id}", httpServer.GetStudy).Methods(http.MethodGet)
+	router.HandleFunc("/studies", httpServer.GetAllStudies).Methods(http.MethodGet)
+	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
+	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
+	router.HandleFunc("/study/{patient}", httpServer.GetStudyByID).Methods(http.MethodGet)
+	router.HandleFunc("/studies/{filter}", httpServer.GetStudiesByFilter).Methods(http.MethodGet)
 	router.HandleFunc("/study", httpServer.CreateStudy).Methods(http.MethodPost)
 	router.HandleFunc("/study/{study_id}", httpServer.UpdateStudy).Methods(http.MethodPatch)
 	router.HandleFunc("/study/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
+	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
 
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,

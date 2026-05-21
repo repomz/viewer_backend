@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package angiodb
+package db
 
 import (
 	"context"
@@ -12,21 +12,8 @@ import (
 )
 
 type Querier interface {
-	// ==========================================
-	// Подсчёт количества (только активные)
-	// ==========================================
-	CountStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) (int64, error)
-	CountStudiesByDateAndStudyType(ctx context.Context, arg CountStudiesByDateAndStudyTypeParams) (int64, error)
-	CountStudiesByDateAndSurgeon(ctx context.Context, arg CountStudiesByDateAndSurgeonParams) (int64, error)
-	CountStudiesByDateSurgeonStudyType(ctx context.Context, arg CountStudiesByDateSurgeonStudyTypeParams) (int64, error)
-	CountStudiesByStudyType(ctx context.Context, studyType string) (int64, error)
-	CountStudiesBySurgeon(ctx context.Context, surgeon string) (int64, error)
-	CountStudiesBySurgeonAndStudyType(ctx context.Context, arg CountStudiesBySurgeonAndStudyTypeParams) (int64, error)
 	CreateStudy(ctx context.Context, arg CreateStudyParams) (Study, error)
 	GetStudies(ctx context.Context) ([]Study, error)
-	// ==========================================
-	// Фильтрация
-	// ==========================================
 	GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) ([]Study, error)
 	GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudiesByDateAndStudyTypeParams) ([]Study, error)
 	GetStudiesByDateAndSurgeon(ctx context.Context, arg GetStudiesByDateAndSurgeonParams) ([]Study, error)

@@ -42,12 +42,12 @@ func (f *PatientFilter) Validate() error {
 
 	runes := []rune(string(f.Patient))
 	if len(runes) < 2 {
-		return domain.ErrPatientNameTooShort
+		return domain.ErrInvalidPatient
 	}
 
 	for _, r := range runes {
 		if !unicode.IsLetter(r) && r != '-' && !unicode.IsSpace(r) {
-			return domain.ErrPatientNameInvalid
+			return domain.ErrInvalidPatient
 		}
 	}
 	return nil
@@ -75,14 +75,14 @@ func (f *StudyFilter) Validate() error {
 	if f.Surgeon != "" {
 		surgeon := strings.ToLower(strings.TrimSpace(string(f.Surgeon)))
 		if !allowedSurgeons[surgeon] {
-			return domain.ErrSurgeonNotFound
+			return domain.ErrNotFound
 		}
 	}
 
 	if f.StudyType != "" {
 		studyType := strings.ToLower(strings.TrimSpace(string(f.StudyType)))
 		if !allowedStudyTypes[studyType] {
-			return domain.ErrStudyTypeNotFound
+			return domain.ErrNotFound
 		}
 	}
 
@@ -101,44 +101,4 @@ func (f *StudyFilter) Normalize() {
 	if f.StudyType != "" {
 		f.StudyType = strings.ToLower(strings.TrimSpace(string(f.StudyType)))
 	}
-}
-
-// IsEmpty - проверка что фильтр пустой
-func (f *StudyFilter) IsEmpty() bool {
-	return f.StudyDate == nil && f.Surgeon == "" && f.StudyType == ""
-}
-
-// HasDateAndSurgeon - комбинация дата + хирург
-func (f *StudyFilter) HasDateAndSurgeon() bool {
-	return f.StudyDate != nil && f.Surgeon != "" && f.StudyType == ""
-}
-
-// HasDateAndType - комбинация дата + тип
-func (f *StudyFilter) HasDateAndType() bool {
-	return f.StudyDate != nil && f.StudyType != "" && f.Surgeon == ""
-}
-
-// HasSurgeonAndType - комбинация хирург + тип
-func (f *StudyFilter) HasSurgeonAndType() bool {
-	return f.Surgeon != "" && f.StudyType != "" && f.StudyDate == nil
-}
-
-// HasAll - все три фильтра
-func (f *StudyFilter) HasAll() bool {
-	return f.StudyDate != nil && f.Surgeon != "" && f.StudyType != ""
-}
-
-// HasOnlyDate - только дата
-func (f *StudyFilter) HasOnlyDate() bool {
-	return f.StudyDate != nil && f.Surgeon == "" && f.StudyType == ""
-}
-
-// HasOnlySurgeon - только хирург
-func (f *StudyFilter) HasOnlySurgeon() bool {
-	return f.Surgeon != "" && f.StudyDate == nil && f.StudyType == ""
-}
-
-// HasOnlyType - только тип
-func (f *StudyFilter) HasOnlyType() bool {
-	return f.StudyType != "" && f.StudyDate == nil && f.Surgeon == ""
 }

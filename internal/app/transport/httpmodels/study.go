@@ -14,12 +14,12 @@ type StudyRequest struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	StudyID        string    `json:"study_id"`
 	Patient        string    `json:"patient"`
-	Age            int       `json:"age"`
+	Age            int32     `json:"age"`
 	Department     string    `json:"department"`
 	NameOperation  string    `json:"name_operation"`
 	DescrOperation string    `json:"descr_operation"`
 	TimeBeginning  time.Time `json:"time_begining"`
-	TimeDuration   int       `json:"time_duration"`
+	TimeDuration   int32     `json:"time_duration"`
 	Surgeon        string    `json:"surgeon"`
 	DicomLink      string    `json:"dicom_link"`
 }
@@ -58,12 +58,12 @@ type StudyResponse struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	StudyID        string    `json:"study_id"`
 	Patient        string    `json:"patient"`
-	Age            int       `json:"age"`
+	Age            int32     `json:"age"`
 	Department     string    `json:"department"`
 	NameOperation  string    `json:"name_operation"`
 	DescrOperation string    `json:"descr_operation"`
 	TimeBeginning  time.Time `json:"time_begining"`
-	TimeDuration   int       `json:"time_duration"`
+	TimeDuration   int32     `json:"time_duration"`
 	Surgeon        string    `json:"surgeon"`
 	DicomLink      string    `json:"dicom_link"`
 }

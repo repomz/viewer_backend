@@ -30,10 +30,6 @@ SET dicom_link = $2, updated_at = NOW()
 WHERE id = $1 AND deleted = false
 RETURNING *;
 
--- ==========================================
--- Фильтрация 
--- ==========================================
-
 -- name: GetStudiesByDate :many
 SELECT * FROM studies
 WHERE time_beginning::date = $1 AND deleted = false
@@ -69,27 +65,23 @@ SELECT * FROM studies
 WHERE time_beginning::date = $1 AND surgeon = $2 AND study_type = $3 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC;
 
--- ==========================================
--- Подсчёт количества (только активные)
--- ==========================================
+-- -- name: CountStudiesByDate :one
+-- SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND deleted = false;
 
--- name: CountStudiesByDate :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND deleted = false;
+-- -- name: CountStudiesBySurgeon :one
+-- SELECT COUNT(*) FROM studies WHERE surgeon = $1 AND deleted = false;
 
--- name: CountStudiesBySurgeon :one
-SELECT COUNT(*) FROM studies WHERE surgeon = $1 AND deleted = false;
+-- -- name: CountStudiesByStudyType :one
+-- SELECT COUNT(*) FROM studies WHERE study_type = $1 AND deleted = false;
 
--- name: CountStudiesByStudyType :one
-SELECT COUNT(*) FROM studies WHERE study_type = $1 AND deleted = false;
+-- -- name: CountStudiesByDateAndSurgeon :one
+-- SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND surgeon = $2 AND deleted = false;
 
--- name: CountStudiesByDateAndSurgeon :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND surgeon = $2 AND deleted = false;
+-- -- name: CountStudiesByDateAndStudyType :one
+-- SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND study_type = $2 AND deleted = false;
 
--- name: CountStudiesByDateAndStudyType :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND study_type = $2 AND deleted = false;
+-- -- name: CountStudiesBySurgeonAndStudyType :one
+-- SELECT COUNT(*) FROM studies WHERE surgeon = $1 AND study_type = $2 AND deleted = false;
 
--- name: CountStudiesBySurgeonAndStudyType :one
-SELECT COUNT(*) FROM studies WHERE surgeon = $1 AND study_type = $2 AND deleted = false;
-
--- name: CountStudiesByDateSurgeonStudyType :one
-SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND surgeon = $2 AND study_type = $3 AND deleted = false;
+-- -- name: CountStudiesByDateSurgeonStudyType :one
+-- SELECT COUNT(*) FROM studies WHERE time_beginning::date = $1 AND surgeon = $2 AND study_type = $3 AND deleted = false;

@@ -38,7 +38,7 @@ func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
 		offset = (page - 1) * limit
 	}
 
-	studies, err := h.studyService.GetStudies(r.Context(), categoryIDs, limit, offset)
+	studies, err := h.studyService.GetAllStudies(r.Context(), categoryIDs, limit, offset)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
@@ -55,9 +55,9 @@ func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
 func (h HttpServer) GetStudiesByFilter(w http.ResponseWriter, r *http.Request) {
 	// filter by category IDs
 	query := r.URL.Query()
-	filter := domain.StudyFilter{
-		Surgeon:   domain.SurgeonFilter(query.Get("surgeon")),
-		StudyType: domain.StudyTypeFilter(query.Get("study_type")),
+	filterRequest := httpmodels.StudyFilter{
+		Surgeon:   query.Get("surgeon"),
+		StudyType: query.Get("study_type"),
 	}
 
 	// Парсинг даты (с обработкой ошибки формата)
@@ -68,25 +68,27 @@ func (h HttpServer) GetStudiesByFilter(w http.ResponseWriter, r *http.Request) {
 			server.BadRequest("invalid study_date format, use YYYY-MM-DD", err, w, r)
 			return
 		}
-		filter.StudyDate = &parsedDate
+		filterRequest.StudyDate = &parsedDate
 	}
 
 	// Нормализуем данные перед валидацией
-	filter.Normalize()
+	filterRequest.Normalize()
 
 	// Валидируем фильтр исследований
-	if err := filter.Validate(); err != nil {
+	if err := filterRequest.Validate(); err != nil {
 		server.BadRequest("validation error", err, w, r)
 		return
 	}
 
-	studies, err := h.studyService.GetStudies(r.Context(), categoryIDs, limit, offset)
+	filter := toDomainStudyFilter(filterRequest)
+
+	studies, err := h.studyService.GetStudiesByFilter(r.Context(), filter)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
 	}
 
-	response := make([]StudyResponse, 0, len(studies))
+	response := make([]httpmodels.StudyResponse, 0, len(studies))
 	for _, study := range studies {
 		response = append(response, toResponseStudy(study))
 	}
@@ -112,7 +114,7 @@ func (h HttpServer) GetStudyByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	study, err := h.studyService.GetStudy(r.Context(), studyID)
+	study, err := h.studyService.GetStudyByID(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			server.NotFound("Study-not-found", err, w, r)
@@ -145,7 +147,7 @@ func (h HttpServer) GetStudyByPatient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patientFilter := toDomainPatient(patientRequest) // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	patientFilter := toDomainPatientFilter(patientRequest) // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	study, err := h.studyService.GetStudyByPatient(r.Context(), patientFilter)
 	if err != nil {
@@ -177,11 +179,12 @@ func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	study, err := toDomainStudy(studyRequest)
-	if err != nil {
-		server.RespondWithError(err, w, r)
-		return
-	}
+	study := toDomainStudy(studyRequest)
+	// !!!!!!!!!!!!!!!!!!!!!!!!!! может нужна валидация маппинга
+	// if err != nil {
+	// 	server.RespondWithError(err, w, r)
+	// 	return
+	// }
 
 	insertedStudy, err := h.studyService.CreateStudy(r.Context(), study)
 	if err != nil {
@@ -213,7 +216,7 @@ func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Получаем study запрос
-	var studyRequest StudyDicomLinkRequest
+	var studyRequest httpmodels.StudyDicomLinkRequest
 	if err := json.NewDecoder(r.Body).Decode(&studyRequest); err != nil {
 		server.BadRequest("invalid-json", err, w, r)
 		return
@@ -226,7 +229,7 @@ func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверяем наличие study с таким id в базе данных
-	_, err = h.studyService.GetStudy(r.Context(), studyID)
+	_, err = h.studyService.GetStudyByID(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			server.NotFound("Study-not-found", err, w, r)
@@ -236,14 +239,15 @@ func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	study, err := domain.NewStudy(domain.NewStudyData{
+	study := domain.ResponseToDBStudy(domain.DBStudyData{
 		ID:        studyID,
 		DicomLink: studyRequest.DicomLink,
 	})
-	if err != nil {
-		server.RespondWithError(err, w, r)
-		return
-	}
+	// !!!!!!!!!!!!!!!!!!!!!!!!!! может нужна валидация маппинга
+	// if err != nil {
+	// 	server.RespondWithError(err, w, r)
+	// 	return
+	// }
 
 	updatedStudy, err := h.studyService.UpdateStudyDicomLink(r.Context(), study)
 	if err != nil {
@@ -274,7 +278,7 @@ func (h HttpServer) DeleteStudy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.studyService.GetStudy(r.Context(), studyID)
+	_, err = h.studyService.GetStudyByID(r.Context(), studyID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			server.NotFound("Study-not-found", err, w, r)
@@ -285,6 +289,22 @@ func (h HttpServer) DeleteStudy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.studyService.DeleteStudy(r.Context(), studyID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			server.NotFound("Study-not-found", err, w, r)
+			return
+		}
+		server.RespondWithError(err, w, r)
+		return
+	}
+
+	server.RespondOK(map[string]bool{"deleted": true}, w, r)
+}
+
+// DeleteStudy deletes all Studies
+func (h HttpServer) DeleteAllStudies(w http.ResponseWriter, r *http.Request) {
+
+	err := h.studyService.DeleteAllStudies(r.Context())
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			server.NotFound("Study-not-found", err, w, r)
