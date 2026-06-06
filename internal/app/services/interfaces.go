@@ -17,3 +17,10 @@ type StudyRepository interface {
 	DeleteStudy(ctx context.Context, id uuid.UUID) error
 	DeleteAllStudies(ctx context.Context) error
 }
+
+type AgentRecordsRepository interface {
+	GetAgentRecordsByAgentID(ctx context.Context, id int16) (domain.AgentRecord, error)
+	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int16, status string) (domain.AgentRecord, error)
+	CreateAgentRecord(ctx context.Context, record domain.AgentRecord) error
+	DeleteAllAgentRecords(ctx context.Context) error
+}
