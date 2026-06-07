@@ -59,9 +59,13 @@ func (h HttpServer) CreateAgentRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentRecord := toDomainAgentRecord(agentRequest)
+	agentRecord, err := toDomainAgentRecord(agentRequest)
+	if err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
 
-	err := h.agentRecordsService.CreateAgentRecord(r.Context(), agentRecord)
+	err = h.agentRecordsService.CreateAgentRecord(r.Context(), agentRecord)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
@@ -72,8 +76,9 @@ func (h HttpServer) CreateAgentRecord(w http.ResponseWriter, r *http.Request) {
 
 func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Request) {
 	// Получаем agent ID из пути
-	vars := mux.Vars(r)
-	agentIDstr := vars["agent_id"]
+	query := r.URL.Query()
+	agentIDstr := query.Get("agent_id")
+
 	if agentIDstr == "" {
 		err := errors.New("agent ID is required")
 		server.BadRequest("invalid agent ID", err, w, r)
@@ -95,7 +100,7 @@ func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Requ
 
 	response := make([]string, 0, len(records))
 	for _, record := range records {
-		response = append(response, record.Format("15:10"))
+		response = append(response, record.Format("15:04"))
 	}
 
 	server.RespondOK(response, w, r)
@@ -103,8 +108,9 @@ func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Requ
 
 func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *http.Request) {
 	// Получаем agent ID из пути
-	vars := mux.Vars(r)
-	agentIDstr := vars["agent_id"]
+	query := r.URL.Query()
+	agentIDstr := query.Get("agent_id")
+
 	if agentIDstr == "" {
 		err := errors.New("agent ID is required")
 		server.BadRequest("invalid agent ID", err, w, r)
@@ -118,7 +124,7 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 		return
 	}
 
-	agentStatus := vars["status"]
+	agentStatus := query.Get("status")
 	if agentStatus == "" {
 		err := errors.New("status is required")
 		server.BadRequest("invalid agent status", err, w, r)
@@ -133,7 +139,7 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 
 	response := make([]string, 0, len(records))
 	for _, record := range records {
-		response = append(response, record.Format("15:10"))
+		response = append(response, record.Format("15:04"))
 	}
 
 	server.RespondOK(response, w, r)

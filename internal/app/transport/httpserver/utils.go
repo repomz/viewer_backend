@@ -1,15 +1,23 @@
 package httpserver
 
 import (
+	"strconv"
+
 	"github.com/repomz/viewer_backend/internal/app/domain"
 	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
-func toDomainAgentRecord(agentRequest httpmodels.AgentRecordRequest) domain.AgentRecord {
+func toDomainAgentRecord(agentRequest httpmodels.AgentRecordRequest) (domain.AgentRecord, error) {
+	agentIDint, err := strconv.Atoi(agentRequest.AgentID)
+	if err != nil {
+		return domain.AgentRecord{}, err
+	}
+	agentID := int32(agentIDint)
+
 	return domain.RequestToDBAgentRecord(domain.DBAgentRecordData{
-		AgentID: agentRequest.AgentID,
+		AgentID: agentID,
 		Status:  agentRequest.Status,
-	})
+	}), nil
 }
 
 func toResponseStudy(study domain.Study) httpmodels.StudyResponse {

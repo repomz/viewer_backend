@@ -94,8 +94,8 @@ func run() error {
 
 	router.HandleFunc("/agent_status", httpServer.CreateAgentRecord).Methods(http.MethodPost)
 	router.HandleFunc("/agent_status/{agent_id}", httpServer.DeleteAllAgentRecords).Methods(http.MethodDelete)
-	router.HandleFunc("/agent_status/search", httpServer.GetAgentRecordsByAgentID).Methods(http.MethodGet)
-	router.HandleFunc("/agent_status/search", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
+	router.HandleFunc("/agent_status/searchby_id", httpServer.GetAgentRecordsByAgentID).Methods(http.MethodGet)
+	router.HandleFunc("/agent_status/searchby_status", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
 
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,

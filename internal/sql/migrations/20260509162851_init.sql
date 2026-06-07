@@ -18,6 +18,13 @@ CREATE TABLE studies (
     deleted         BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+CREATE TABLE agent_records (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id        INTEGER NOT NULL,
+    status          TEXT NOT NULL,
+    sent_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Индексы для быстрого поиска
 CREATE INDEX idx_studies_time_beginning ON studies (time_beginning) WHERE NOT deleted;
 CREATE INDEX idx_studies_surgeon ON studies (surgeon) WHERE NOT deleted;
@@ -31,4 +38,5 @@ CREATE INDEX idx_studies_time_surgeon_type ON studies (time_beginning, surgeon, 
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE studies;
+DROP TABLE agent_records;
 -- +goose StatementEnd

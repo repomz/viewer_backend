@@ -25,7 +25,7 @@ func (a AgentRecordRepo) DeleteAllAgentRecords(ctx context.Context, agent_id int
 
 	err := a.query.DeleteAgentRecordsByAgentID(ctx, agent_id)
 	if err != nil {
-		return fmt.Errorf("failed to delete agent_id %w records: %w", agent_id, err)
+		return fmt.Errorf("failed to delete agent_id %v records: %w", agent_id, err)
 	}
 
 	return nil

@@ -7,12 +7,12 @@ import (
 )
 
 type AgentRecordRequest struct {
-	AgentID int32  `json:"agent_id"`
+	AgentID string `json:"agent_id"`
 	Status  string `json:"status"`
 }
 
 func (a *AgentRecordRequest) Validate() error {
-	if a.AgentID != 1 && a.AgentID != 2 {
+	if a.AgentID != "1" && a.AgentID != "2" {
 		return fmt.Errorf("%w: agent_id", domain.ErrRequired)
 	}
 	if a.Status == "" {
