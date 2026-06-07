@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/domain"
@@ -19,8 +20,8 @@ type StudyRepository interface {
 }
 
 type AgentRecordsRepository interface {
-	GetAgentRecordsByAgentID(ctx context.Context, id int16) (domain.AgentRecord, error)
-	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int16, status string) (domain.AgentRecord, error)
+	GetAgentRecordsByAgentID(ctx context.Context, id int32) ([]time.Time, error)
+	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string) ([]time.Time, error)
 	CreateAgentRecord(ctx context.Context, record domain.AgentRecord) error
-	DeleteAllAgentRecords(ctx context.Context) error
+	DeleteAllAgentRecords(ctx context.Context, agent_id int32) error
 }

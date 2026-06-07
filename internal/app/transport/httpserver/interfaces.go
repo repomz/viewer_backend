@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/domain"
@@ -17,4 +18,11 @@ type StudyService interface {
 	UpdateStudyDicomLink(ctx context.Context, study domain.Study) (domain.Study, error)
 	DeleteStudy(ctx context.Context, id uuid.UUID) error
 	DeleteAllStudies(ctx context.Context) error
+}
+
+type AgentRecordsService interface {
+	GetAgentRecordsByAgentID(ctx context.Context, id int32) ([]time.Time, error)
+	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string) ([]time.Time, error)
+	CreateAgentRecord(ctx context.Context, record domain.AgentRecord) error
+	DeleteAllAgentRecords(ctx context.Context, agent_id int32) error
 }

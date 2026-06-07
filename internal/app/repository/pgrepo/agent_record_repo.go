@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/db"
 	"github.com/repomz/viewer_backend/internal/app/domain"
 )
@@ -21,73 +21,66 @@ func NewAgentRecordRepo(qr *db.Queries) *AgentRecordRepo {
 	}
 }
 
-func (s StudyRepo) DeleteAllAgentReecords(ctx context.Context) error {
+func (a AgentRecordRepo) DeleteAllAgentRecords(ctx context.Context, agent_id int32) error {
 
-	err := s.query.SoftDeleteAllStudies(ctx)
+	err := a.query.DeleteAgentRecordsByAgentID(ctx, agent_id)
 	if err != nil {
-		return fmt.Errorf("failed to delete studies: %w", err)
+		return fmt.Errorf("failed to delete agent_id %w records: %w", agent_id, err)
 	}
 
 	return nil
 }
 
-func (s StudyRepo) CreateAgentRecord(ctx context.Context, study domain.Study) error {
+func (a AgentRecordRepo) CreateAgentRecord(ctx context.Context, agentRecord domain.AgentRecord) error {
 
-	studyParams := domainToDBStudyParams(study)
+	agentRecordParams := domainToDBagentRecordParams(agentRecord)
 
-	insertedStudy, err := s.query.CreateStudy(ctx, studyParams)
+	err := a.query.CreateAgentRecord(ctx, agentRecordParams)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to insert a book: %w", err)
+		return fmt.Errorf("failed to insert a agent record: %w", err)
 	}
 
-	domainBook, err := dbStudyToDomain(insertedStudy)
-	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
-	}
-
-	return domainBook, nil
+	return nil
 
 }
 
-func (s StudyRepo) GetAgentRecordByAgentIDandStaus(ctx context.Context, id int16, status string) (domain.AgentRecord, error) {
+func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, agent_id int32, status string) ([]time.Time, error) {
 
-	if id == uuid.Nil {
-		return domain.Study{}, fmt.Errorf("%w: id", domain.ErrRequired)
+	if agent_id == 0 {
+		return []time.Time{}, fmt.Errorf("%w: id", domain.ErrRequired)
 	}
 
-	study, err := s.query.GetStudyByID(ctx, id)
+	if status != "well" && status != "with_errors" {
+		return []time.Time{}, fmt.Errorf("%w: id", domain.ErrRequired)
+	}
+
+	arg := db.GetAgentRecordsByAgentIDandStatusParams{
+		AgentID: agent_id,
+		Status:  status,
+	}
+
+	times, err := a.query.GetAgentRecordsByAgentIDandStatus(ctx, arg)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Study{}, domain.ErrNotFound
+			return []time.Time{}, domain.ErrNotFound
 		}
-		return domain.Study{}, fmt.Errorf("failed to get a book: %w", err)
+		return []time.Time{}, fmt.Errorf("failed to get a agent time record: %w", err)
 	}
 
-	domainStudy, err := dbStudyToDomain(study)
-	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
-	}
-
-	return domainStudy, nil
+	return times, nil
 }
-func (s StudyRepo) GetAgentRecordByAgentID(ctx context.Context, id int16) (domain.AgentRecord, error) {
+func (a AgentRecordRepo) GetAgentRecordsByAgentID(ctx context.Context, agent_id int32) ([]time.Time, error) {
 
-	if id == uuid.Nil {
-		return domain.Study{}, fmt.Errorf("%w: id", domain.ErrRequired)
+	if agent_id == 0 {
+		return []time.Time{}, fmt.Errorf("%w: id", domain.ErrRequired)
 	}
-
-	study, err := s.query.GetStudyByID(ctx, id)
+	times, err := a.query.GetAgentRecordsByAgentID(ctx, agent_id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Study{}, domain.ErrNotFound
+			return []time.Time{}, domain.ErrNotFound
 		}
-		return domain.Study{}, fmt.Errorf("failed to get a book: %w", err)
+		return []time.Time{}, fmt.Errorf("failed to get a agent time record: %w", err)
 	}
 
-	domainStudy, err := dbStudyToDomain(study)
-	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
-	}
-
-	return domainStudy, nil
+	return times, nil
 }

@@ -11,6 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type AgentRecord struct {
+	ID      uuid.UUID `json:"id"`
+	AgentID int32     `json:"agent_id"`
+	Status  string    `json:"status"`
+	SentAt  time.Time `json:"sent_at"`
+}
+
 type Study struct {
 	ID             uuid.UUID      `json:"id"`
 	CreatedAt      time.Time      `json:"created_at"`

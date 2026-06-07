@@ -26,6 +26,13 @@ import (
 // 	}
 // }
 
+func domainToDBagentRecordParams(agent domain.AgentRecord) db.CreateAgentRecordParams {
+	return db.CreateAgentRecordParams{
+		AgentID: agent.AgentID(),
+		Status:  agent.Status(),
+	}
+}
+
 func domainToDBStudyParams(study domain.Study) db.CreateStudyParams {
 	return db.CreateStudyParams{
 		StudyID:        study.StudyID(),

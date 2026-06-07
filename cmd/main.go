@@ -69,11 +69,13 @@ func run() error {
 	// create repositories
 
 	studyRepo := pgrepo.NewStudyRepo(pgDB)
+	agentRecordRepo := pgrepo.NewAgentRecordRepo(pgDB)
 
 	studyService := services.NewStudyService(studyRepo)
+	agentRecordsService := services.NewAgentRecordsService(agentRecordRepo)
 
 	// create http server with application injected
-	httpServer := httpserver.NewHttpServer(studyService)
+	httpServer := httpserver.NewHttpServer(studyService, agentRecordsService)
 
 	// create http router
 	router := mux.NewRouter()
@@ -89,6 +91,11 @@ func run() error {
 	router.HandleFunc("/study", httpServer.CreateStudy).Methods(http.MethodPost)
 	router.HandleFunc("/study/{study_id}", httpServer.UpdateStudy).Methods(http.MethodPatch)
 	router.HandleFunc("/study/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
+
+	router.HandleFunc("/agent_status", httpServer.CreateAgentRecord).Methods(http.MethodPost)
+	router.HandleFunc("/agent_status/{agent_id}", httpServer.DeleteAllAgentRecords).Methods(http.MethodDelete)
+	router.HandleFunc("/agent_status/search", httpServer.GetAgentRecordsByAgentID).Methods(http.MethodGet)
+	router.HandleFunc("/agent_status/search", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
 
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,

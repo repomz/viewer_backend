@@ -1,22 +1,23 @@
--- name: CreateAgentRecord :one
-INSERT INTO agent_records (agent_id, status, sent_at)
-VALUES ($1, $2, $3);
+-- name: CreateAgentRecord :exec
+INSERT INTO agent_records (agent_id, status)
+VALUES ($1, $2);
 
--- name: GetAgentRecordByAgentID :many
+-- name: GetAgentRecordsByAgentID :many
 SELECT sent_at FROM agent_records
 WHERE agent_id = $1
-ORDER BY created_at ASC;
+ORDER BY sent_at DESC;
 
--- name: GetAgentRecordByAgentIDandStatus :many
+-- name: GetAgentRecordsByAgentIDandStatus :many
 SELECT sent_at FROM agent_records
 WHERE agent_id = $1 AND status = $2
 ORDER BY sent_at DESC;
 
--- name: GetAgentRecordByStatus :many
+-- name: GetAgentRecordsByStatus :many
 SELECT id FROM agent_records
 WHERE status = $1
 ORDER BY sent_at DESC;
 
--- name: DeleteAgentRecords :many
-DELETE * FROM agent_records
-WHERE agent_id = $1
+-- name: DeleteAgentRecordsByAgentID :exec
+DELETE FROM agent_records
+WHERE agent_id = $1;
+

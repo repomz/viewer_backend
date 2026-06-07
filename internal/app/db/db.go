@@ -24,8 +24,23 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.createAgentRecordStmt, err = db.PrepareContext(ctx, createAgentRecord); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateAgentRecord: %w", err)
+	}
 	if q.createStudyStmt, err = db.PrepareContext(ctx, createStudy); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateStudy: %w", err)
+	}
+	if q.deleteAgentRecordsByAgentIDStmt, err = db.PrepareContext(ctx, deleteAgentRecordsByAgentID); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteAgentRecordsByAgentID: %w", err)
+	}
+	if q.getAgentRecordsByAgentIDStmt, err = db.PrepareContext(ctx, getAgentRecordsByAgentID); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAgentRecordsByAgentID: %w", err)
+	}
+	if q.getAgentRecordsByAgentIDandStatusStmt, err = db.PrepareContext(ctx, getAgentRecordsByAgentIDandStatus); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAgentRecordsByAgentIDandStatus: %w", err)
+	}
+	if q.getAgentRecordsByStatusStmt, err = db.PrepareContext(ctx, getAgentRecordsByStatus); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAgentRecordsByStatus: %w", err)
 	}
 	if q.getStudiesStmt, err = db.PrepareContext(ctx, getStudies); err != nil {
 		return nil, fmt.Errorf("error preparing query GetStudies: %w", err)
@@ -71,9 +86,34 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.createAgentRecordStmt != nil {
+		if cerr := q.createAgentRecordStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createAgentRecordStmt: %w", cerr)
+		}
+	}
 	if q.createStudyStmt != nil {
 		if cerr := q.createStudyStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createStudyStmt: %w", cerr)
+		}
+	}
+	if q.deleteAgentRecordsByAgentIDStmt != nil {
+		if cerr := q.deleteAgentRecordsByAgentIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteAgentRecordsByAgentIDStmt: %w", cerr)
+		}
+	}
+	if q.getAgentRecordsByAgentIDStmt != nil {
+		if cerr := q.getAgentRecordsByAgentIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAgentRecordsByAgentIDStmt: %w", cerr)
+		}
+	}
+	if q.getAgentRecordsByAgentIDandStatusStmt != nil {
+		if cerr := q.getAgentRecordsByAgentIDandStatusStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAgentRecordsByAgentIDandStatusStmt: %w", cerr)
+		}
+	}
+	if q.getAgentRecordsByStatusStmt != nil {
+		if cerr := q.getAgentRecordsByStatusStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAgentRecordsByStatusStmt: %w", cerr)
 		}
 	}
 	if q.getStudiesStmt != nil {
@@ -178,41 +218,51 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                                   DBTX
-	tx                                   *sql.Tx
-	createStudyStmt                      *sql.Stmt
-	getStudiesStmt                       *sql.Stmt
-	getStudiesByDateStmt                 *sql.Stmt
-	getStudiesByDateAndStudyTypeStmt     *sql.Stmt
-	getStudiesByDateAndSurgeonStmt       *sql.Stmt
-	getStudiesByDateSurgeonStudyTypeStmt *sql.Stmt
-	getStudiesByStudyTypeStmt            *sql.Stmt
-	getStudiesBySurgeonStmt              *sql.Stmt
-	getStudiesBySurgeonAndStudyTypeStmt  *sql.Stmt
-	getStudyByIDStmt                     *sql.Stmt
-	getStudyByPatientStmt                *sql.Stmt
-	softDeleteAllStudiesStmt             *sql.Stmt
-	softDeleteStudyStmt                  *sql.Stmt
-	updateStudyDicomLinkStmt             *sql.Stmt
+	db                                    DBTX
+	tx                                    *sql.Tx
+	createAgentRecordStmt                 *sql.Stmt
+	createStudyStmt                       *sql.Stmt
+	deleteAgentRecordsByAgentIDStmt       *sql.Stmt
+	getAgentRecordsByAgentIDStmt          *sql.Stmt
+	getAgentRecordsByAgentIDandStatusStmt *sql.Stmt
+	getAgentRecordsByStatusStmt           *sql.Stmt
+	getStudiesStmt                        *sql.Stmt
+	getStudiesByDateStmt                  *sql.Stmt
+	getStudiesByDateAndStudyTypeStmt      *sql.Stmt
+	getStudiesByDateAndSurgeonStmt        *sql.Stmt
+	getStudiesByDateSurgeonStudyTypeStmt  *sql.Stmt
+	getStudiesByStudyTypeStmt             *sql.Stmt
+	getStudiesBySurgeonStmt               *sql.Stmt
+	getStudiesBySurgeonAndStudyTypeStmt   *sql.Stmt
+	getStudyByIDStmt                      *sql.Stmt
+	getStudyByPatientStmt                 *sql.Stmt
+	softDeleteAllStudiesStmt              *sql.Stmt
+	softDeleteStudyStmt                   *sql.Stmt
+	updateStudyDicomLinkStmt              *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                                   tx,
-		tx:                                   tx,
-		createStudyStmt:                      q.createStudyStmt,
-		getStudiesStmt:                       q.getStudiesStmt,
-		getStudiesByDateStmt:                 q.getStudiesByDateStmt,
-		getStudiesByDateAndStudyTypeStmt:     q.getStudiesByDateAndStudyTypeStmt,
-		getStudiesByDateAndSurgeonStmt:       q.getStudiesByDateAndSurgeonStmt,
-		getStudiesByDateSurgeonStudyTypeStmt: q.getStudiesByDateSurgeonStudyTypeStmt,
-		getStudiesByStudyTypeStmt:            q.getStudiesByStudyTypeStmt,
-		getStudiesBySurgeonStmt:              q.getStudiesBySurgeonStmt,
-		getStudiesBySurgeonAndStudyTypeStmt:  q.getStudiesBySurgeonAndStudyTypeStmt,
-		getStudyByIDStmt:                     q.getStudyByIDStmt,
-		getStudyByPatientStmt:                q.getStudyByPatientStmt,
-		softDeleteAllStudiesStmt:             q.softDeleteAllStudiesStmt,
-		softDeleteStudyStmt:                  q.softDeleteStudyStmt,
-		updateStudyDicomLinkStmt:             q.updateStudyDicomLinkStmt,
+		db:                                    tx,
+		tx:                                    tx,
+		createAgentRecordStmt:                 q.createAgentRecordStmt,
+		createStudyStmt:                       q.createStudyStmt,
+		deleteAgentRecordsByAgentIDStmt:       q.deleteAgentRecordsByAgentIDStmt,
+		getAgentRecordsByAgentIDStmt:          q.getAgentRecordsByAgentIDStmt,
+		getAgentRecordsByAgentIDandStatusStmt: q.getAgentRecordsByAgentIDandStatusStmt,
+		getAgentRecordsByStatusStmt:           q.getAgentRecordsByStatusStmt,
+		getStudiesStmt:                        q.getStudiesStmt,
+		getStudiesByDateStmt:                  q.getStudiesByDateStmt,
+		getStudiesByDateAndStudyTypeStmt:      q.getStudiesByDateAndStudyTypeStmt,
+		getStudiesByDateAndSurgeonStmt:        q.getStudiesByDateAndSurgeonStmt,
+		getStudiesByDateSurgeonStudyTypeStmt:  q.getStudiesByDateSurgeonStudyTypeStmt,
+		getStudiesByStudyTypeStmt:             q.getStudiesByStudyTypeStmt,
+		getStudiesBySurgeonStmt:               q.getStudiesBySurgeonStmt,
+		getStudiesBySurgeonAndStudyTypeStmt:   q.getStudiesBySurgeonAndStudyTypeStmt,
+		getStudyByIDStmt:                      q.getStudyByIDStmt,
+		getStudyByPatientStmt:                 q.getStudyByPatientStmt,
+		softDeleteAllStudiesStmt:              q.softDeleteAllStudiesStmt,
+		softDeleteStudyStmt:                   q.softDeleteStudyStmt,
+		updateStudyDicomLinkStmt:              q.updateStudyDicomLinkStmt,
 	}
 }

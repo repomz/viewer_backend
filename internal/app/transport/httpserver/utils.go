@@ -5,6 +5,13 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
+func toDomainAgentRecord(agentRequest httpmodels.AgentRecordRequest) domain.AgentRecord {
+	return domain.RequestToDBAgentRecord(domain.DBAgentRecordData{
+		AgentID: agentRequest.AgentID,
+		Status:  agentRequest.Status,
+	})
+}
+
 func toResponseStudy(study domain.Study) httpmodels.StudyResponse {
 	return httpmodels.StudyResponse{
 		ID:             study.ID(),

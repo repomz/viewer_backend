@@ -7,12 +7,18 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Querier interface {
+	CreateAgentRecord(ctx context.Context, arg CreateAgentRecordParams) error
 	CreateStudy(ctx context.Context, arg CreateStudyParams) (Study, error)
+	DeleteAgentRecordsByAgentID(ctx context.Context, agentID int32) error
+	GetAgentRecordsByAgentID(ctx context.Context, agentID int32) ([]time.Time, error)
+	GetAgentRecordsByAgentIDandStatus(ctx context.Context, arg GetAgentRecordsByAgentIDandStatusParams) ([]time.Time, error)
+	GetAgentRecordsByStatus(ctx context.Context, status string) ([]uuid.UUID, error)
 	GetStudies(ctx context.Context) ([]Study, error)
 	GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) ([]Study, error)
 	GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudiesByDateAndStudyTypeParams) ([]Study, error)
