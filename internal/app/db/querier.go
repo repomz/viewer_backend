@@ -13,12 +13,18 @@ import (
 )
 
 type Querier interface {
+	CompleteUserRequest(ctx context.Context, id uuid.UUID) (UserRequest, error)
 	CreateAgentRecord(ctx context.Context, arg CreateAgentRecordParams) error
 	CreateStudy(ctx context.Context, arg CreateStudyParams) (Study, error)
+	CreateUserRequest(ctx context.Context, arg CreateUserRequestParams) (uuid.UUID, error)
 	DeleteAgentRecordsByAgentID(ctx context.Context, agentID int32) error
+	DeleteOldRequests(ctx context.Context) error
+	FailUserRequest(ctx context.Context, arg FailUserRequestParams) (UserRequest, error)
 	GetAgentRecordsByAgentID(ctx context.Context, agentID int32) ([]time.Time, error)
 	GetAgentRecordsByAgentIDandStatus(ctx context.Context, arg GetAgentRecordsByAgentIDandStatusParams) ([]time.Time, error)
 	GetAgentRecordsByStatus(ctx context.Context, status string) ([]uuid.UUID, error)
+	GetAndProcessNextUserRequest(ctx context.Context) (UserRequest, error)
+	GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, error)
 	GetStudies(ctx context.Context) ([]Study, error)
 	GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) ([]Study, error)
 	GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudiesByDateAndStudyTypeParams) ([]Study, error)

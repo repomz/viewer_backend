@@ -35,3 +35,20 @@ type Study struct {
 	DicomLink      sql.NullString `json:"dicom_link"`
 	Deleted        bool           `json:"deleted"`
 }
+
+type UserRequest struct {
+	ID          uuid.UUID      `json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	Status      string         `json:"status"`
+	UserID      string         `json:"user_id"`
+	RequestType string         `json:"request_type"`
+	Command     sql.NullString `json:"command"`
+	StudyID     sql.NullString `json:"study_id"`
+	XaID        sql.NullString `json:"xa_id"`
+	CtID        sql.NullString `json:"ct_id"`
+	StudyFilter sql.NullString `json:"study_filter"`
+	XaFilter    sql.NullString `json:"xa_filter"`
+	CtFilter    sql.NullString `json:"ct_filter"`
+	ErrorLog    sql.NullString `json:"error_log"`
+}

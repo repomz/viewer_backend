@@ -24,14 +24,26 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.completeUserRequestStmt, err = db.PrepareContext(ctx, completeUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query CompleteUserRequest: %w", err)
+	}
 	if q.createAgentRecordStmt, err = db.PrepareContext(ctx, createAgentRecord); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateAgentRecord: %w", err)
 	}
 	if q.createStudyStmt, err = db.PrepareContext(ctx, createStudy); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateStudy: %w", err)
 	}
+	if q.createUserRequestStmt, err = db.PrepareContext(ctx, createUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateUserRequest: %w", err)
+	}
 	if q.deleteAgentRecordsByAgentIDStmt, err = db.PrepareContext(ctx, deleteAgentRecordsByAgentID); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteAgentRecordsByAgentID: %w", err)
+	}
+	if q.deleteOldRequestsStmt, err = db.PrepareContext(ctx, deleteOldRequests); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteOldRequests: %w", err)
+	}
+	if q.failUserRequestStmt, err = db.PrepareContext(ctx, failUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query FailUserRequest: %w", err)
 	}
 	if q.getAgentRecordsByAgentIDStmt, err = db.PrepareContext(ctx, getAgentRecordsByAgentID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAgentRecordsByAgentID: %w", err)
@@ -41,6 +53,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getAgentRecordsByStatusStmt, err = db.PrepareContext(ctx, getAgentRecordsByStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAgentRecordsByStatus: %w", err)
+	}
+	if q.getAndProcessNextUserRequestStmt, err = db.PrepareContext(ctx, getAndProcessNextUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAndProcessNextUserRequest: %w", err)
+	}
+	if q.getOldRequestsForArchiveStmt, err = db.PrepareContext(ctx, getOldRequestsForArchive); err != nil {
+		return nil, fmt.Errorf("error preparing query GetOldRequestsForArchive: %w", err)
 	}
 	if q.getStudiesStmt, err = db.PrepareContext(ctx, getStudies); err != nil {
 		return nil, fmt.Errorf("error preparing query GetStudies: %w", err)
@@ -86,6 +104,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.completeUserRequestStmt != nil {
+		if cerr := q.completeUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing completeUserRequestStmt: %w", cerr)
+		}
+	}
 	if q.createAgentRecordStmt != nil {
 		if cerr := q.createAgentRecordStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createAgentRecordStmt: %w", cerr)
@@ -96,9 +119,24 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createStudyStmt: %w", cerr)
 		}
 	}
+	if q.createUserRequestStmt != nil {
+		if cerr := q.createUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createUserRequestStmt: %w", cerr)
+		}
+	}
 	if q.deleteAgentRecordsByAgentIDStmt != nil {
 		if cerr := q.deleteAgentRecordsByAgentIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteAgentRecordsByAgentIDStmt: %w", cerr)
+		}
+	}
+	if q.deleteOldRequestsStmt != nil {
+		if cerr := q.deleteOldRequestsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteOldRequestsStmt: %w", cerr)
+		}
+	}
+	if q.failUserRequestStmt != nil {
+		if cerr := q.failUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing failUserRequestStmt: %w", cerr)
 		}
 	}
 	if q.getAgentRecordsByAgentIDStmt != nil {
@@ -114,6 +152,16 @@ func (q *Queries) Close() error {
 	if q.getAgentRecordsByStatusStmt != nil {
 		if cerr := q.getAgentRecordsByStatusStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAgentRecordsByStatusStmt: %w", cerr)
+		}
+	}
+	if q.getAndProcessNextUserRequestStmt != nil {
+		if cerr := q.getAndProcessNextUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAndProcessNextUserRequestStmt: %w", cerr)
+		}
+	}
+	if q.getOldRequestsForArchiveStmt != nil {
+		if cerr := q.getOldRequestsForArchiveStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getOldRequestsForArchiveStmt: %w", cerr)
 		}
 	}
 	if q.getStudiesStmt != nil {
@@ -220,12 +268,18 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                                    DBTX
 	tx                                    *sql.Tx
+	completeUserRequestStmt               *sql.Stmt
 	createAgentRecordStmt                 *sql.Stmt
 	createStudyStmt                       *sql.Stmt
+	createUserRequestStmt                 *sql.Stmt
 	deleteAgentRecordsByAgentIDStmt       *sql.Stmt
+	deleteOldRequestsStmt                 *sql.Stmt
+	failUserRequestStmt                   *sql.Stmt
 	getAgentRecordsByAgentIDStmt          *sql.Stmt
 	getAgentRecordsByAgentIDandStatusStmt *sql.Stmt
 	getAgentRecordsByStatusStmt           *sql.Stmt
+	getAndProcessNextUserRequestStmt      *sql.Stmt
+	getOldRequestsForArchiveStmt          *sql.Stmt
 	getStudiesStmt                        *sql.Stmt
 	getStudiesByDateStmt                  *sql.Stmt
 	getStudiesByDateAndStudyTypeStmt      *sql.Stmt
@@ -245,12 +299,18 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                                    tx,
 		tx:                                    tx,
+		completeUserRequestStmt:               q.completeUserRequestStmt,
 		createAgentRecordStmt:                 q.createAgentRecordStmt,
 		createStudyStmt:                       q.createStudyStmt,
+		createUserRequestStmt:                 q.createUserRequestStmt,
 		deleteAgentRecordsByAgentIDStmt:       q.deleteAgentRecordsByAgentIDStmt,
+		deleteOldRequestsStmt:                 q.deleteOldRequestsStmt,
+		failUserRequestStmt:                   q.failUserRequestStmt,
 		getAgentRecordsByAgentIDStmt:          q.getAgentRecordsByAgentIDStmt,
 		getAgentRecordsByAgentIDandStatusStmt: q.getAgentRecordsByAgentIDandStatusStmt,
 		getAgentRecordsByStatusStmt:           q.getAgentRecordsByStatusStmt,
+		getAndProcessNextUserRequestStmt:      q.getAndProcessNextUserRequestStmt,
+		getOldRequestsForArchiveStmt:          q.getOldRequestsForArchiveStmt,
 		getStudiesStmt:                        q.getStudiesStmt,
 		getStudiesByDateStmt:                  q.getStudiesByDateStmt,
 		getStudiesByDateAndStudyTypeStmt:      q.getStudiesByDateAndStudyTypeStmt,
