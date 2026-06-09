@@ -56,24 +56,6 @@ func toDomainStudy(studyRequest httpmodels.StudyRequest) domain.Study {
 	})
 }
 
-// func toDomainStudy(studyRequest httpmodels.StudyRequest) (domain.Study, error) {
-// 	return domain.NewStudy(domain.NewStudyData{
-// 		ID:             studyRequest.ID,
-// 		CreatedAt:      studyRequest.CreatedAt,
-// 		UpdatedAt:      studyRequest.UpdatedAt,
-// 		StudyID:        studyRequest.StudyID,
-// 		Patient:        studyRequest.Patient,
-// 		Age:            studyRequest.Age,
-// 		Department:     studyRequest.Department,
-// 		NameOperation:  studyRequest.NameOperation,
-// 		DescrOperation: studyRequest.DescrOperation,
-// 		TimeBeginning:  studyRequest.TimeBeginning,
-// 		TimeDuration:   studyRequest.TimeDuration,
-// 		Surgeon:        studyRequest.Surgeon,
-// 		DicomLink:      studyRequest.DicomLink,
-// 	})
-// }
-
 func toDomainPatientFilter(patientRequest httpmodels.PatientFilter) domain.PatientFilter {
 	return domain.PatientFilter{
 		Patient: patientRequest.Patient,

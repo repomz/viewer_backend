@@ -8,24 +8,6 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
-// func domainToDBStudy(study domain.Study) db.Study {
-// 	return db.Study{
-// 		ID:             study.ID(),
-// 		CreatedAt:      study.CreatedAt(),
-// 		UpdatedAt:      study.UpdatedAt(),
-// 		StudyID:        study.StudyID(),
-// 		Patient:        study.Patient(),
-// 		Age:            study.Age(),
-// 		Department:     study.Department(),
-// 		NameOperation:  study.NameOperation(),
-// 		DescrOperation: study.Descroperation(),
-// 		TimeBeginning:  study.TimeBeginning(),
-// 		TimeDuration:   study.TimeDuration(),
-// 		Surgeon:        study.Surgeon(),
-// 		DicomLink:      study.DicomLink(),
-// 	}
-// }
-
 func domainToDBagentRecordParams(agent domain.AgentRecord) db.CreateAgentRecordParams {
 	return db.CreateAgentRecordParams{
 		AgentID: agent.AgentID(),
@@ -54,24 +36,6 @@ func domainToDBDicomLinkParams(study domain.Study) db.UpdateStudyDicomLinkParams
 		DicomLink: study.DicomLink(),
 	}
 }
-
-// func dbStudyToDomain(study db.Study) (domain.Study, error) {
-// 	return domain.NewStudy(domain.NewStudyData{
-// 		ID:             study.ID,
-// 		CreatedAt:      study.CreatedAt,
-// 		UpdatedAt:      study.UpdatedAt,
-// 		StudyID:        study.StudyID,
-// 		Patient:        study.Patient,
-// 		Age:            sql.NullInt32.Int32,
-// 		Department:     study.Department,
-// 		NameOperation:  study.NameOperation,
-// 		DescrOperation: study.DescrOperation,
-// 		TimeBeginning:  study.TimeBeginning,
-// 		TimeDuration:   study.TimeDuration,
-// 		Surgeon:        study.Surgeon,
-// 		DicomLink:      study.DicomLink,
-// 	})
-// }
 
 func dbStudyToDomain(study db.Study) (domain.Study, error) {
 	return domain.DBToNewStudy(study)
