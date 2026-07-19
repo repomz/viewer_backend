@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+bin
+*.out
+*.test
+coverage*
+examples
+respons.json
+testing.md
+AUDIT_REPORT.md
+AGENT_INTEGRATION.md
