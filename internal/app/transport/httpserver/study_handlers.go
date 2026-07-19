@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -16,29 +15,29 @@ import (
 )
 
 func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
-	// filter by category IDs
-	queryCategoryIDs := r.URL.Query()["category_id"]
-	var categoryIDs []int
-	for _, id := range queryCategoryIDs {
-		categoryID, err := strconv.Atoi(id)
-		if err != nil {
-			server.BadRequest("invalid-category-id", err, w, r)
+	query := r.URL.Query()
+	page := 1
+	if rawPage := query.Get("page"); rawPage != "" {
+		parsedPage, err := strconv.Atoi(rawPage)
+		if err != nil || parsedPage < 1 {
+			server.BadRequest("invalid-page", errors.New("page must be a positive integer"), w, r)
 			return
 		}
-		categoryIDs = append(categoryIDs, categoryID)
-	}
-	// page
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil {
-		page = 1
-	}
-	var limit, offset int
-	if page > 0 {
-		limit = 10
-		offset = (page - 1) * limit
+		page = parsedPage
 	}
 
-	studies, err := h.studyService.GetAllStudies(r.Context(), categoryIDs, limit, offset)
+	pageSize := 10
+	if rawPageSize := query.Get("page_size"); rawPageSize != "" {
+		parsedPageSize, err := strconv.Atoi(rawPageSize)
+		if err != nil || parsedPageSize < 1 || parsedPageSize > 100 {
+			server.BadRequest("invalid-page-size", errors.New("page_size must be between 1 and 100"), w, r)
+			return
+		}
+		pageSize = parsedPageSize
+	}
+	offset := (page - 1) * pageSize
+
+	studies, err := h.studyService.GetAllStudies(r.Context(), pageSize, offset)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
@@ -168,7 +167,7 @@ func (h HttpServer) GetStudyByPatient(w http.ResponseWriter, r *http.Request) {
 func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 	// Получаем study запрос
 	var studyRequest httpmodels.StudyRequest
-	if err := json.NewDecoder(r.Body).Decode(&studyRequest); err != nil {
+	if err := decodeJSON(w, r, &studyRequest); err != nil {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}
@@ -194,7 +193,7 @@ func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 
 	response := toResponseStudy(insertedStudy)
 
-	server.RespondOK(response, w, r)
+	server.RespondCreated(response, w, r)
 }
 
 // UpdateStudy updates a Study by ID
@@ -217,7 +216,7 @@ func (h HttpServer) UpdateStudy(w http.ResponseWriter, r *http.Request) {
 
 	// Получаем study запрос
 	var studyRequest httpmodels.StudyDicomLinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&studyRequest); err != nil {
+	if err := decodeJSON(w, r, &studyRequest); err != nil {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}

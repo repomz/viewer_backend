@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.claimNextUserRequestStmt, err = db.PrepareContext(ctx, claimNextUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query ClaimNextUserRequest: %w", err)
+	}
 	if q.completeUserRequestStmt, err = db.PrepareContext(ctx, completeUserRequest); err != nil {
 		return nil, fmt.Errorf("error preparing query CompleteUserRequest: %w", err)
 	}
@@ -53,9 +56,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getAgentRecordsByStatusStmt, err = db.PrepareContext(ctx, getAgentRecordsByStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAgentRecordsByStatus: %w", err)
-	}
-	if q.getAndProcessNextUserRequestStmt, err = db.PrepareContext(ctx, getAndProcessNextUserRequest); err != nil {
-		return nil, fmt.Errorf("error preparing query GetAndProcessNextUserRequest: %w", err)
 	}
 	if q.getOldRequestsForArchiveStmt, err = db.PrepareContext(ctx, getOldRequestsForArchive); err != nil {
 		return nil, fmt.Errorf("error preparing query GetOldRequestsForArchive: %w", err)
@@ -90,6 +90,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getStudyByPatientStmt, err = db.PrepareContext(ctx, getStudyByPatient); err != nil {
 		return nil, fmt.Errorf("error preparing query GetStudyByPatient: %w", err)
 	}
+	if q.getUserRequestByIDStmt, err = db.PrepareContext(ctx, getUserRequestByID); err != nil {
+		return nil, fmt.Errorf("error preparing query GetUserRequestByID: %w", err)
+	}
+	if q.retryUserRequestStmt, err = db.PrepareContext(ctx, retryUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query RetryUserRequest: %w", err)
+	}
 	if q.softDeleteAllStudiesStmt, err = db.PrepareContext(ctx, softDeleteAllStudies); err != nil {
 		return nil, fmt.Errorf("error preparing query SoftDeleteAllStudies: %w", err)
 	}
@@ -104,6 +110,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.claimNextUserRequestStmt != nil {
+		if cerr := q.claimNextUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing claimNextUserRequestStmt: %w", cerr)
+		}
+	}
 	if q.completeUserRequestStmt != nil {
 		if cerr := q.completeUserRequestStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing completeUserRequestStmt: %w", cerr)
@@ -152,11 +163,6 @@ func (q *Queries) Close() error {
 	if q.getAgentRecordsByStatusStmt != nil {
 		if cerr := q.getAgentRecordsByStatusStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getAgentRecordsByStatusStmt: %w", cerr)
-		}
-	}
-	if q.getAndProcessNextUserRequestStmt != nil {
-		if cerr := q.getAndProcessNextUserRequestStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getAndProcessNextUserRequestStmt: %w", cerr)
 		}
 	}
 	if q.getOldRequestsForArchiveStmt != nil {
@@ -214,6 +220,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getStudyByPatientStmt: %w", cerr)
 		}
 	}
+	if q.getUserRequestByIDStmt != nil {
+		if cerr := q.getUserRequestByIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getUserRequestByIDStmt: %w", cerr)
+		}
+	}
+	if q.retryUserRequestStmt != nil {
+		if cerr := q.retryUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing retryUserRequestStmt: %w", cerr)
+		}
+	}
 	if q.softDeleteAllStudiesStmt != nil {
 		if cerr := q.softDeleteAllStudiesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing softDeleteAllStudiesStmt: %w", cerr)
@@ -268,6 +284,7 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 type Queries struct {
 	db                                    DBTX
 	tx                                    *sql.Tx
+	claimNextUserRequestStmt              *sql.Stmt
 	completeUserRequestStmt               *sql.Stmt
 	createAgentRecordStmt                 *sql.Stmt
 	createStudyStmt                       *sql.Stmt
@@ -278,7 +295,6 @@ type Queries struct {
 	getAgentRecordsByAgentIDStmt          *sql.Stmt
 	getAgentRecordsByAgentIDandStatusStmt *sql.Stmt
 	getAgentRecordsByStatusStmt           *sql.Stmt
-	getAndProcessNextUserRequestStmt      *sql.Stmt
 	getOldRequestsForArchiveStmt          *sql.Stmt
 	getStudiesStmt                        *sql.Stmt
 	getStudiesByDateStmt                  *sql.Stmt
@@ -290,6 +306,8 @@ type Queries struct {
 	getStudiesBySurgeonAndStudyTypeStmt   *sql.Stmt
 	getStudyByIDStmt                      *sql.Stmt
 	getStudyByPatientStmt                 *sql.Stmt
+	getUserRequestByIDStmt                *sql.Stmt
+	retryUserRequestStmt                  *sql.Stmt
 	softDeleteAllStudiesStmt              *sql.Stmt
 	softDeleteStudyStmt                   *sql.Stmt
 	updateStudyDicomLinkStmt              *sql.Stmt
@@ -299,6 +317,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db:                                    tx,
 		tx:                                    tx,
+		claimNextUserRequestStmt:              q.claimNextUserRequestStmt,
 		completeUserRequestStmt:               q.completeUserRequestStmt,
 		createAgentRecordStmt:                 q.createAgentRecordStmt,
 		createStudyStmt:                       q.createStudyStmt,
@@ -309,7 +328,6 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAgentRecordsByAgentIDStmt:          q.getAgentRecordsByAgentIDStmt,
 		getAgentRecordsByAgentIDandStatusStmt: q.getAgentRecordsByAgentIDandStatusStmt,
 		getAgentRecordsByStatusStmt:           q.getAgentRecordsByStatusStmt,
-		getAndProcessNextUserRequestStmt:      q.getAndProcessNextUserRequestStmt,
 		getOldRequestsForArchiveStmt:          q.getOldRequestsForArchiveStmt,
 		getStudiesStmt:                        q.getStudiesStmt,
 		getStudiesByDateStmt:                  q.getStudiesByDateStmt,
@@ -321,6 +339,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getStudiesBySurgeonAndStudyTypeStmt:   q.getStudiesBySurgeonAndStudyTypeStmt,
 		getStudyByIDStmt:                      q.getStudyByIDStmt,
 		getStudyByPatientStmt:                 q.getStudyByPatientStmt,
+		getUserRequestByIDStmt:                q.getUserRequestByIDStmt,
+		retryUserRequestStmt:                  q.retryUserRequestStmt,
 		softDeleteAllStudiesStmt:              q.softDeleteAllStudiesStmt,
 		softDeleteStudyStmt:                   q.softDeleteStudyStmt,
 		updateStudyDicomLinkStmt:              q.updateStudyDicomLinkStmt,

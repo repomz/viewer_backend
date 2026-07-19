@@ -8,90 +8,160 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
 
-const completeUserRequest = `-- name: CompleteUserRequest :one
-UPDATE user_requests
-SET 
-    status = 'completed',
-    updated_at = NOW()
-WHERE id = $1 AND status = 'in_process'
-RETURNING id, created_at, updated_at, status, user_id, request_type, command, study_id, xa_id, ct_id, study_filter, xa_filter, ct_filter, error_log
+const claimNextUserRequest = `-- name: ClaimNextUserRequest :one
+WITH next_request AS (
+    SELECT id
+    FROM user_requests
+    WHERE user_requests.agent_id = $1
+      AND user_requests.attempt_count < user_requests.max_attempts
+      AND (
+          (status = 'pending' AND available_at <= NOW())
+          OR (status = 'in_process' AND lease_expires_at <= NOW())
+      )
+    ORDER BY available_at ASC, created_at ASC
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+)
+UPDATE user_requests AS request
+SET status = 'in_process',
+    attempt_count = request.attempt_count + 1,
+    updated_at = NOW(),
+    lease_expires_at = NOW() + INTERVAL '5 minutes'
+FROM next_request
+WHERE request.id = next_request.id
+RETURNING request.id, request.created_at, request.updated_at, request.available_at, request.lease_expires_at, request.completed_at, request.status, request.user_id, request.agent_id, request.request_type, request.command, request.payload, request.result, request.error_log, request.attempt_count, request.max_attempts
 `
 
-func (q *Queries) CompleteUserRequest(ctx context.Context, id uuid.UUID) (UserRequest, error) {
-	row := q.queryRow(ctx, q.completeUserRequestStmt, completeUserRequest, id)
+func (q *Queries) ClaimNextUserRequest(ctx context.Context, agentID int32) (UserRequest, error) {
+	row := q.queryRow(ctx, q.claimNextUserRequestStmt, claimNextUserRequest, agentID)
 	var i UserRequest
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AvailableAt,
+		&i.LeaseExpiresAt,
+		&i.CompletedAt,
 		&i.Status,
 		&i.UserID,
+		&i.AgentID,
 		&i.RequestType,
 		&i.Command,
-		&i.StudyID,
-		&i.XaID,
-		&i.CtID,
-		&i.StudyFilter,
-		&i.XaFilter,
-		&i.CtFilter,
+		&i.Payload,
+		&i.Result,
 		&i.ErrorLog,
+		&i.AttemptCount,
+		&i.MaxAttempts,
+	)
+	return i, err
+}
+
+const completeUserRequest = `-- name: CompleteUserRequest :one
+UPDATE user_requests
+SET status = 'completed',
+    result = $3,
+    error_log = NULL,
+    updated_at = NOW(),
+    completed_at = NOW(),
+    lease_expires_at = NULL
+WHERE id = $1
+  AND agent_id = $2
+  AND status = 'in_process'
+RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
+`
+
+type CompleteUserRequestParams struct {
+	ID      uuid.UUID       `json:"id"`
+	AgentID int32           `json:"agent_id"`
+	Result  json.RawMessage `json:"result"`
+}
+
+func (q *Queries) CompleteUserRequest(ctx context.Context, arg CompleteUserRequestParams) (UserRequest, error) {
+	row := q.queryRow(ctx, q.completeUserRequestStmt, completeUserRequest, arg.ID, arg.AgentID, arg.Result)
+	var i UserRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AvailableAt,
+		&i.LeaseExpiresAt,
+		&i.CompletedAt,
+		&i.Status,
+		&i.UserID,
+		&i.AgentID,
+		&i.RequestType,
+		&i.Command,
+		&i.Payload,
+		&i.Result,
+		&i.ErrorLog,
+		&i.AttemptCount,
+		&i.MaxAttempts,
 	)
 	return i, err
 }
 
 const createUserRequest = `-- name: CreateUserRequest :one
 INSERT INTO user_requests (
-    status, user_id, request_type, command, 
-    study_id, xa_id, ct_id, 
-    study_filter, xa_filter, ct_filter,
-    error_log
+    user_id,
+    agent_id,
+    request_type,
+    command,
+    payload,
+    max_attempts
 )
-VALUES (
-    'pending', $1, $2, $3, 
-    $4, $5, $6, 
-    $7, $8, $9,
-    NULL
-)
-RETURNING id
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 `
 
 type CreateUserRequestParams struct {
-	UserID      string         `json:"user_id"`
-	RequestType string         `json:"request_type"`
-	Command     sql.NullString `json:"command"`
-	StudyID     sql.NullString `json:"study_id"`
-	XaID        sql.NullString `json:"xa_id"`
-	CtID        sql.NullString `json:"ct_id"`
-	StudyFilter sql.NullString `json:"study_filter"`
-	XaFilter    sql.NullString `json:"xa_filter"`
-	CtFilter    sql.NullString `json:"ct_filter"`
+	UserID      string          `json:"user_id"`
+	AgentID     int32           `json:"agent_id"`
+	RequestType string          `json:"request_type"`
+	Command     string          `json:"command"`
+	Payload     json.RawMessage `json:"payload"`
+	MaxAttempts int32           `json:"max_attempts"`
 }
 
-func (q *Queries) CreateUserRequest(ctx context.Context, arg CreateUserRequestParams) (uuid.UUID, error) {
+func (q *Queries) CreateUserRequest(ctx context.Context, arg CreateUserRequestParams) (UserRequest, error) {
 	row := q.queryRow(ctx, q.createUserRequestStmt, createUserRequest,
 		arg.UserID,
+		arg.AgentID,
 		arg.RequestType,
 		arg.Command,
-		arg.StudyID,
-		arg.XaID,
-		arg.CtID,
-		arg.StudyFilter,
-		arg.XaFilter,
-		arg.CtFilter,
+		arg.Payload,
+		arg.MaxAttempts,
 	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var i UserRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AvailableAt,
+		&i.LeaseExpiresAt,
+		&i.CompletedAt,
+		&i.Status,
+		&i.UserID,
+		&i.AgentID,
+		&i.RequestType,
+		&i.Command,
+		&i.Payload,
+		&i.Result,
+		&i.ErrorLog,
+		&i.AttemptCount,
+		&i.MaxAttempts,
+	)
+	return i, err
 }
 
 const deleteOldRequests = `-- name: DeleteOldRequests :exec
 DELETE FROM user_requests
 WHERE status IN ('completed', 'failed')
-  AND updated_at < NOW() - INTERVAL '3 days'
+  AND completed_at < NOW() - INTERVAL '3 days'
 `
 
 func (q *Queries) DeleteOldRequests(ctx context.Context) error {
@@ -101,93 +171,53 @@ func (q *Queries) DeleteOldRequests(ctx context.Context) error {
 
 const failUserRequest = `-- name: FailUserRequest :one
 UPDATE user_requests
-SET 
-    status = 'failed',
+SET status = 'failed',
+    error_log = $3,
     updated_at = NOW(),
-    error_log = $2
-WHERE id = $1 AND status = 'in_process'
-RETURNING id, created_at, updated_at, status, user_id, request_type, command, study_id, xa_id, ct_id, study_filter, xa_filter, ct_filter, error_log
+    completed_at = NOW(),
+    lease_expires_at = NULL
+WHERE id = $1
+  AND agent_id = $2
+  AND status = 'in_process'
+RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 `
 
 type FailUserRequestParams struct {
 	ID       uuid.UUID      `json:"id"`
+	AgentID  int32          `json:"agent_id"`
 	ErrorLog sql.NullString `json:"error_log"`
 }
 
 func (q *Queries) FailUserRequest(ctx context.Context, arg FailUserRequestParams) (UserRequest, error) {
-	row := q.queryRow(ctx, q.failUserRequestStmt, failUserRequest, arg.ID, arg.ErrorLog)
+	row := q.queryRow(ctx, q.failUserRequestStmt, failUserRequest, arg.ID, arg.AgentID, arg.ErrorLog)
 	var i UserRequest
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AvailableAt,
+		&i.LeaseExpiresAt,
+		&i.CompletedAt,
 		&i.Status,
 		&i.UserID,
+		&i.AgentID,
 		&i.RequestType,
 		&i.Command,
-		&i.StudyID,
-		&i.XaID,
-		&i.CtID,
-		&i.StudyFilter,
-		&i.XaFilter,
-		&i.CtFilter,
+		&i.Payload,
+		&i.Result,
 		&i.ErrorLog,
-	)
-	return i, err
-}
-
-const getAndProcessNextUserRequest = `-- name: GetAndProcessNextUserRequest :one
-UPDATE user_requests
-SET 
-    status = 'in_process',
-    updated_at = NOW()
-WHERE id = (
-    SELECT id 
-    FROM user_requests 
-    WHERE 
-        status = 'pending'
-        OR (
-            status = 'in_process' 
-            AND updated_at < NOW() - CASE 
-                WHEN request_type IN ('find_study', 'find_xa', 'find_ct', 'execute_command') THEN INTERVAL '5 minutes'
-                WHEN request_type IN ('get_xa', 'get_ct') THEN INTERVAL '15 minutes'
-                ELSE INTERVAL '30 minutes' -- Дефолтный таймаут на случай появления новых типов
-            END
-        )
-    ORDER BY created_at ASC 
-    LIMIT 1
-)
-RETURNING id, created_at, updated_at, status, user_id, request_type, command, study_id, xa_id, ct_id, study_filter, xa_filter, ct_filter, error_log
-`
-
-func (q *Queries) GetAndProcessNextUserRequest(ctx context.Context) (UserRequest, error) {
-	row := q.queryRow(ctx, q.getAndProcessNextUserRequestStmt, getAndProcessNextUserRequest)
-	var i UserRequest
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Status,
-		&i.UserID,
-		&i.RequestType,
-		&i.Command,
-		&i.StudyID,
-		&i.XaID,
-		&i.CtID,
-		&i.StudyFilter,
-		&i.XaFilter,
-		&i.CtFilter,
-		&i.ErrorLog,
+		&i.AttemptCount,
+		&i.MaxAttempts,
 	)
 	return i, err
 }
 
 const getOldRequestsForArchive = `-- name: GetOldRequestsForArchive :many
-SELECT id, created_at, updated_at, status, user_id, request_type, command, study_id, xa_id, ct_id, study_filter, xa_filter, ct_filter, error_log 
+SELECT id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 FROM user_requests
 WHERE status IN ('completed', 'failed')
-  AND updated_at < NOW() - INTERVAL '3 days'
-ORDER BY updated_at ASC
+  AND completed_at < NOW() - INTERVAL '3 days'
+ORDER BY completed_at ASC
 `
 
 func (q *Queries) GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, error) {
@@ -203,17 +233,19 @@ func (q *Queries) GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, 
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AvailableAt,
+			&i.LeaseExpiresAt,
+			&i.CompletedAt,
 			&i.Status,
 			&i.UserID,
+			&i.AgentID,
 			&i.RequestType,
 			&i.Command,
-			&i.StudyID,
-			&i.XaID,
-			&i.CtID,
-			&i.StudyFilter,
-			&i.XaFilter,
-			&i.CtFilter,
+			&i.Payload,
+			&i.Result,
 			&i.ErrorLog,
+			&i.AttemptCount,
+			&i.MaxAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -226,4 +258,84 @@ func (q *Queries) GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getUserRequestByID = `-- name: GetUserRequestByID :one
+SELECT id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
+FROM user_requests
+WHERE id = $1
+`
+
+func (q *Queries) GetUserRequestByID(ctx context.Context, id uuid.UUID) (UserRequest, error) {
+	row := q.queryRow(ctx, q.getUserRequestByIDStmt, getUserRequestByID, id)
+	var i UserRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AvailableAt,
+		&i.LeaseExpiresAt,
+		&i.CompletedAt,
+		&i.Status,
+		&i.UserID,
+		&i.AgentID,
+		&i.RequestType,
+		&i.Command,
+		&i.Payload,
+		&i.Result,
+		&i.ErrorLog,
+		&i.AttemptCount,
+		&i.MaxAttempts,
+	)
+	return i, err
+}
+
+const retryUserRequest = `-- name: RetryUserRequest :one
+UPDATE user_requests
+SET status = CASE
+        WHEN attempt_count < max_attempts THEN 'pending'
+        ELSE 'failed'
+    END,
+    error_log = $3,
+    updated_at = NOW(),
+    available_at = NOW() + INTERVAL '30 seconds',
+    lease_expires_at = NULL,
+    completed_at = CASE
+        WHEN attempt_count < max_attempts THEN NULL
+        ELSE NOW()
+    END
+WHERE id = $1
+  AND agent_id = $2
+  AND status = 'in_process'
+RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
+`
+
+type RetryUserRequestParams struct {
+	ID       uuid.UUID      `json:"id"`
+	AgentID  int32          `json:"agent_id"`
+	ErrorLog sql.NullString `json:"error_log"`
+}
+
+func (q *Queries) RetryUserRequest(ctx context.Context, arg RetryUserRequestParams) (UserRequest, error) {
+	row := q.queryRow(ctx, q.retryUserRequestStmt, retryUserRequest, arg.ID, arg.AgentID, arg.ErrorLog)
+	var i UserRequest
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AvailableAt,
+		&i.LeaseExpiresAt,
+		&i.CompletedAt,
+		&i.Status,
+		&i.UserID,
+		&i.AgentID,
+		&i.RequestType,
+		&i.Command,
+		&i.Payload,
+		&i.Result,
+		&i.ErrorLog,
+		&i.AttemptCount,
+		&i.MaxAttempts,
+	)
+	return i, err
 }

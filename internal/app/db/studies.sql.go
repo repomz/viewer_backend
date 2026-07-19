@@ -70,11 +70,17 @@ func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (Study
 const getStudies = `-- name: GetStudies :many
 SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE deleted = false
-ORDER BY created_at ASC
+ORDER BY created_at DESC, id DESC
+LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) GetStudies(ctx context.Context) ([]Study, error) {
-	rows, err := q.query(ctx, q.getStudiesStmt, getStudies)
+type GetStudiesParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) GetStudies(ctx context.Context, arg GetStudiesParams) ([]Study, error) {
+	rows, err := q.query(ctx, q.getStudiesStmt, getStudies, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -479,6 +485,8 @@ func (q *Queries) GetStudyByID(ctx context.Context, id uuid.UUID) (Study, error)
 const getStudyByPatient = `-- name: GetStudyByPatient :one
 SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE patient = $1 AND deleted = false
+ORDER BY time_beginning DESC NULLS LAST, created_at DESC
+LIMIT 1
 `
 
 func (q *Queries) GetStudyByPatient(ctx context.Context, patient string) (Study, error) {

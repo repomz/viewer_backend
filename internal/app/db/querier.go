@@ -13,19 +13,19 @@ import (
 )
 
 type Querier interface {
-	CompleteUserRequest(ctx context.Context, id uuid.UUID) (UserRequest, error)
+	ClaimNextUserRequest(ctx context.Context, agentID int32) (UserRequest, error)
+	CompleteUserRequest(ctx context.Context, arg CompleteUserRequestParams) (UserRequest, error)
 	CreateAgentRecord(ctx context.Context, arg CreateAgentRecordParams) error
 	CreateStudy(ctx context.Context, arg CreateStudyParams) (Study, error)
-	CreateUserRequest(ctx context.Context, arg CreateUserRequestParams) (uuid.UUID, error)
+	CreateUserRequest(ctx context.Context, arg CreateUserRequestParams) (UserRequest, error)
 	DeleteAgentRecordsByAgentID(ctx context.Context, agentID int32) error
 	DeleteOldRequests(ctx context.Context) error
 	FailUserRequest(ctx context.Context, arg FailUserRequestParams) (UserRequest, error)
 	GetAgentRecordsByAgentID(ctx context.Context, agentID int32) ([]time.Time, error)
 	GetAgentRecordsByAgentIDandStatus(ctx context.Context, arg GetAgentRecordsByAgentIDandStatusParams) ([]time.Time, error)
 	GetAgentRecordsByStatus(ctx context.Context, status string) ([]uuid.UUID, error)
-	GetAndProcessNextUserRequest(ctx context.Context) (UserRequest, error)
 	GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, error)
-	GetStudies(ctx context.Context) ([]Study, error)
+	GetStudies(ctx context.Context, arg GetStudiesParams) ([]Study, error)
 	GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) ([]Study, error)
 	GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudiesByDateAndStudyTypeParams) ([]Study, error)
 	GetStudiesByDateAndSurgeon(ctx context.Context, arg GetStudiesByDateAndSurgeonParams) ([]Study, error)
@@ -35,6 +35,8 @@ type Querier interface {
 	GetStudiesBySurgeonAndStudyType(ctx context.Context, arg GetStudiesBySurgeonAndStudyTypeParams) ([]Study, error)
 	GetStudyByID(ctx context.Context, id uuid.UUID) (Study, error)
 	GetStudyByPatient(ctx context.Context, patient string) (Study, error)
+	GetUserRequestByID(ctx context.Context, id uuid.UUID) (UserRequest, error)
+	RetryUserRequest(ctx context.Context, arg RetryUserRequestParams) (UserRequest, error)
 	SoftDeleteAllStudies(ctx context.Context) error
 	SoftDeleteStudy(ctx context.Context, id uuid.UUID) error
 	UpdateStudyDicomLink(ctx context.Context, arg UpdateStudyDicomLinkParams) (Study, error)

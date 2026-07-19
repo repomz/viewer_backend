@@ -6,7 +6,8 @@ RETURNING *;
 -- name: GetStudies :many
 SELECT * FROM studies
 WHERE deleted = false
-ORDER BY created_at ASC;
+ORDER BY created_at DESC, id DESC
+LIMIT $1 OFFSET $2;
 
 -- name: GetStudyByID :one
 SELECT * FROM studies
@@ -14,7 +15,9 @@ WHERE id = $1 AND deleted = false;
 
 -- name: GetStudyByPatient :one
 SELECT * FROM studies
-WHERE patient = $1 AND deleted = false;
+WHERE patient = $1 AND deleted = false
+ORDER BY time_beginning DESC NULLS LAST, created_at DESC
+LIMIT 1;
 
 -- name: SoftDeleteStudy :exec
 UPDATE studies SET deleted = true, updated_at = NOW()

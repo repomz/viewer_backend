@@ -21,9 +21,12 @@ func NewStudyRepo(qr *db.Queries) *StudyRepo {
 	}
 }
 
-func (s StudyRepo) GetAllStudies(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Study, error) {
+func (s StudyRepo) GetAllStudies(ctx context.Context, limit, offset int) ([]domain.Study, error) {
 
-	studies, err := s.query.GetStudies(ctx)
+	studies, err := s.query.GetStudies(ctx, db.GetStudiesParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get studies: %w", err)
 	}
@@ -106,7 +109,7 @@ func (s StudyRepo) GetStudiesByFilter(ctx context.Context, filter domain.StudyFi
 		}
 
 	default:
-		studies, err = s.query.GetStudies(ctx)
+		studies, err = s.query.GetStudies(ctx, db.GetStudiesParams{Limit: 100})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get studies: %w", err)
 		}
@@ -136,12 +139,12 @@ func (s StudyRepo) GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Study{}, domain.ErrNotFound
 		}
-		return domain.Study{}, fmt.Errorf("failed to get a book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to get a study: %w", err)
 	}
 
 	domainStudy, err := dbStudyToDomain(study)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to create domain study: %w", err)
 	}
 
 	return domainStudy, nil
@@ -150,7 +153,7 @@ func (s StudyRepo) GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study
 func (s StudyRepo) GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error) {
 
 	if patient.Patient == "" {
-		return domain.Study{}, fmt.Errorf("%w: id", domain.ErrRequired)
+		return domain.Study{}, fmt.Errorf("%w: patient", domain.ErrRequired)
 	}
 
 	study, err := s.query.GetStudyByPatient(ctx, patient.Patient)
@@ -158,12 +161,12 @@ func (s StudyRepo) GetStudyByPatient(ctx context.Context, patient domain.Patient
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Study{}, domain.ErrNotFound
 		}
-		return domain.Study{}, fmt.Errorf("failed to get a book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to get a study: %w", err)
 	}
 
 	domainStudy, err := dbStudyToDomain(study)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to create domain study: %w", err)
 	}
 
 	return domainStudy, nil
@@ -175,15 +178,15 @@ func (s StudyRepo) CreateStudy(ctx context.Context, study domain.Study) (domain.
 
 	insertedStudy, err := s.query.CreateStudy(ctx, studyParams)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to insert a book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to insert a study: %w", err)
 	}
 
-	domainBook, err := dbStudyToDomain(insertedStudy)
+	domainStudy, err := dbStudyToDomain(insertedStudy)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to create domain study: %w", err)
 	}
 
-	return domainBook, nil
+	return domainStudy, nil
 
 }
 
@@ -193,15 +196,18 @@ func (s StudyRepo) UpdateStudyDicomLink(ctx context.Context, study domain.Study)
 
 	updatedStudy, err := s.query.UpdateStudyDicomLink(ctx, dicomLinkParams)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to update a book: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Study{}, domain.ErrNotFound
+		}
+		return domain.Study{}, fmt.Errorf("failed to update a study: %w", err)
 	}
 
-	domainBook, err := dbStudyToDomain(updatedStudy)
+	domainStudy, err := dbStudyToDomain(updatedStudy)
 	if err != nil {
-		return domain.Study{}, fmt.Errorf("failed to create domain book: %w", err)
+		return domain.Study{}, fmt.Errorf("failed to create domain study: %w", err)
 	}
 
-	return domainBook, nil
+	return domainStudy, nil
 }
 
 func (s StudyRepo) DeleteStudy(ctx context.Context, id uuid.UUID) error {

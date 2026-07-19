@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/repomz/viewer_backend/internal/app/common/slugerrors"
+	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
 func InternalError(slug string, err error, w http.ResponseWriter, r *http.Request) {
@@ -23,10 +24,34 @@ func BadRequest(slug string, err error, w http.ResponseWriter, r *http.Request) 
 }
 
 func NotFound(slug string, err error, w http.ResponseWriter, r *http.Request) {
-	httpRespondWithError(err, slug, w, r, "Not found", http.StatusBadRequest)
+	httpRespondWithError(err, slug, w, r, "Not found", http.StatusNotFound)
+}
+
+func Conflict(slug string, err error, w http.ResponseWriter, r *http.Request) {
+	httpRespondWithError(err, slug, w, r, "Conflict", http.StatusConflict)
 }
 
 func RespondWithError(err error, w http.ResponseWriter, r *http.Request) {
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		NotFound("not-found", err, w, r)
+		return
+	case errors.Is(err, domain.ErrConflict):
+		Conflict("conflict", err, w, r)
+		return
+	case errors.Is(err, domain.ErrRequired),
+		errors.Is(err, domain.ErrNegative),
+		errors.Is(err, domain.ErrInvalidPatient),
+		errors.Is(err, domain.ErrInvalidAgentID),
+		errors.Is(err, domain.ErrInvalidSurgeon),
+		errors.Is(err, domain.ErrInvalidStudyType),
+		errors.Is(err, domain.ErrInvalidStatus),
+		errors.Is(err, domain.ErrInvalidCommand),
+		errors.Is(err, domain.ErrInvalidRequest):
+		BadRequest("invalid-request", err, w, r)
+		return
+	}
+
 	var slugError slugerrors.SlugError
 	if !errors.As(err, &slugError) {
 		InternalError("internal-server-error", err, w, r)

@@ -21,6 +21,10 @@ var allowedSurgeons = map[string]bool{
 	"киргизов": true,
 }
 
+func IsAllowedSurgeon(surgeon string) bool {
+	return allowedSurgeons[strings.ToLower(strings.TrimSpace(surgeon))]
+}
+
 // Список разрешенных типов исследований в нижнем регистре
 var allowedStudyTypes = map[string]bool{
 	"каг":             true,
@@ -34,10 +38,15 @@ var allowedStudyTypes = map[string]bool{
 	"тромбаспирация":  true,
 }
 
+func IsAllowedStudyType(studyType string) bool {
+	return allowedStudyTypes[strings.ToLower(strings.TrimSpace(studyType))]
+}
+
 // Validate проверяет имя пациента отдельно от других структур
 func (f *PatientFilter) Validate() error {
+	f.Patient = strings.TrimSpace(f.Patient)
 	if f.Patient == "" {
-		return nil
+		return fmt.Errorf("%w: patient", domain.ErrRequired)
 	}
 
 	runes := []rune(string(f.Patient))
@@ -46,7 +55,7 @@ func (f *PatientFilter) Validate() error {
 	}
 
 	for _, r := range runes {
-		if !unicode.IsLetter(r) && r != '-' && !unicode.IsSpace(r) {
+		if !unicode.IsLetter(r) && r != '-' && r != '.' && r != '\'' && r != '’' && !unicode.IsSpace(r) {
 			return domain.ErrInvalidPatient
 		}
 	}
@@ -74,15 +83,15 @@ type StudyFilter struct {
 func (f *StudyFilter) Validate() error {
 	if f.Surgeon != "" {
 		surgeon := strings.ToLower(strings.TrimSpace(string(f.Surgeon)))
-		if !allowedSurgeons[surgeon] {
-			return domain.ErrNotFound
+		if !IsAllowedSurgeon(surgeon) {
+			return domain.ErrInvalidSurgeon
 		}
 	}
 
 	if f.StudyType != "" {
 		studyType := strings.ToLower(strings.TrimSpace(string(f.StudyType)))
-		if !allowedStudyTypes[studyType] {
-			return domain.ErrNotFound
+		if !IsAllowedStudyType(studyType) {
+			return domain.ErrInvalidStudyType
 		}
 	}
 

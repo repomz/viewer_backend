@@ -1,3 +1,5 @@
+-- +goose Up
+-- +goose StatementBegin
 CREATE TABLE user_requests (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -22,3 +24,9 @@ CREATE TABLE user_requests (
 
 CREATE INDEX idx_user_requests_queue
     ON user_requests (agent_id, status, available_at, created_at);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE user_requests;
+-- +goose StatementEnd

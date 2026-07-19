@@ -1,20 +1,20 @@
 -include .env
 export
 
+APP_NAME ?= viewer_backend
+BUILD_DIR ?= $(if $(BUILD),$(BUILD),./bin)
+
 .PHONY: dc build run test clean migrate-status migrate-up migrate-down migrate-create lint
 
 # --- Сборка и запуск ---
 
 build: ## Сборка бинарного файла
 	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/main.go
+	go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd
 
 run:  ## Запуск приложения
 	@mkdir -p $(BUILD_DIR) && \
-	go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/main.go && \
-	HTTP_ADDR=:8080 \
-	DB_DSN="postgres://angio_user:angio_password@localhost:5432/angio_db?sslmode=disable" \
-	DEBUG_ERRORS=1 \
+	go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd && \
 	$(BUILD_DIR)/$(APP_NAME)
 
 test: ## Запуск тестов

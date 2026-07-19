@@ -1,10 +1,10 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/repomz/viewer_backend/internal/app/common/server"
@@ -25,13 +25,13 @@ func (h HttpServer) DeleteAllAgentRecords(w http.ResponseWriter, r *http.Request
 	}
 
 	// Парсим строку в int
-	agentID, err := strconv.Atoi(agentIDstr)
+	agentID, err := parseAgentID(agentIDstr)
 	if err != nil {
 		server.BadRequest("invalid agent ID format", err, w, r)
 		return
 	}
 
-	err = h.agentRecordsService.DeleteAllAgentRecords(r.Context(), int32(agentID))
+	err = h.agentRecordsService.DeleteAllAgentRecords(r.Context(), agentID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			server.NotFound("record-not-found", err, w, r)
@@ -48,7 +48,7 @@ func (h HttpServer) DeleteAllAgentRecords(w http.ResponseWriter, r *http.Request
 func (h HttpServer) CreateAgentRecord(w http.ResponseWriter, r *http.Request) {
 	// Получаем agent record запрос
 	var agentRequest httpmodels.AgentRecordRequest
-	if err := json.NewDecoder(r.Body).Decode(&agentRequest); err != nil {
+	if err := decodeJSON(w, r, &agentRequest); err != nil {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}
@@ -71,7 +71,7 @@ func (h HttpServer) CreateAgentRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.RespondOK(map[string]bool{"agent record inserted": true}, w, r)
+	server.RespondCreated(map[string]bool{"inserted": true}, w, r)
 }
 
 func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Request) {
@@ -86,13 +86,13 @@ func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Парсим строку в int
-	agentID, err := strconv.Atoi(agentIDstr)
+	agentID, err := parseAgentID(agentIDstr)
 	if err != nil {
 		server.BadRequest("invalid agent ID format", err, w, r)
 		return
 	}
 
-	records, err := h.agentRecordsService.GetAgentRecordsByAgentID(r.Context(), int32(agentID))
+	records, err := h.agentRecordsService.GetAgentRecordsByAgentID(r.Context(), agentID)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
@@ -100,7 +100,7 @@ func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Requ
 
 	response := make([]string, 0, len(records))
 	for _, record := range records {
-		response = append(response, record.Format("15:04"))
+		response = append(response, record.Format(time.RFC3339))
 	}
 
 	server.RespondOK(response, w, r)
@@ -118,20 +118,20 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 	}
 
 	// Парсим строку в int
-	agentID, err := strconv.Atoi(agentIDstr)
+	agentID, err := parseAgentID(agentIDstr)
 	if err != nil {
 		server.BadRequest("invalid agent ID format", err, w, r)
 		return
 	}
 
-	agentStatus := query.Get("status")
+	agentStatus := strings.ToLower(strings.TrimSpace(query.Get("status")))
 	if agentStatus == "" {
 		err := errors.New("status is required")
 		server.BadRequest("invalid agent status", err, w, r)
 		return
 	}
 
-	records, err := h.agentRecordsService.GetAgentRecordsByAgentIDandStatus(r.Context(), int32(agentID), agentStatus)
+	records, err := h.agentRecordsService.GetAgentRecordsByAgentIDandStatus(r.Context(), agentID, agentStatus)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
@@ -139,7 +139,7 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 
 	response := make([]string, 0, len(records))
 	for _, record := range records {
-		response = append(response, record.Format("15:04"))
+		response = append(response, record.Format(time.RFC3339))
 	}
 
 	server.RespondOK(response, w, r)

@@ -16,6 +16,7 @@ type Study struct {
 	age            int32
 	department     string
 	nameOperation  string
+	studyType      string
 	descrOperation string
 	timeBeginning  time.Time
 	timeDuration   int32
@@ -32,6 +33,7 @@ type DBStudyData struct {
 	Age            int32
 	Department     string
 	NameOperation  string
+	StudyType      string
 	DescrOperation string
 	TimeBeginning  time.Time
 	TimeDuration   int32
@@ -52,6 +54,7 @@ func ResponseToDBStudy(data DBStudyData) Study {
 		age:            data.Age,
 		department:     data.Department,
 		nameOperation:  data.NameOperation,
+		studyType:      data.StudyType,
 		descrOperation: data.DescrOperation,
 		timeBeginning:  data.TimeBeginning,
 		timeDuration:   data.TimeDuration,
@@ -71,6 +74,7 @@ func DBToNewStudy(data db.Study) (Study, error) {
 		age:            data.Age.Int32,
 		department:     data.Department,
 		nameOperation:  data.NameOperation,
+		studyType:      data.StudyType,
 		descrOperation: data.DescrOperation,
 		timeBeginning:  data.TimeBeginning.Time,
 		timeDuration:   data.TimeDuration.Int32,
@@ -115,7 +119,11 @@ func (b Study) NameOperation() string {
 	return b.nameOperation
 }
 
-func (b Study) Descroperation() string {
+func (b Study) StudyType() string {
+	return b.studyType
+}
+
+func (b Study) DescrOperation() string {
 	return b.descrOperation
 }
 

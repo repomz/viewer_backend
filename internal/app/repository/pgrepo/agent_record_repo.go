@@ -22,6 +22,9 @@ func NewAgentRecordRepo(qr *db.Queries) *AgentRecordRepo {
 }
 
 func (a AgentRecordRepo) DeleteAllAgentRecords(ctx context.Context, agent_id int32) error {
+	if agent_id <= 0 {
+		return fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
+	}
 
 	err := a.query.DeleteAgentRecordsByAgentID(ctx, agent_id)
 	if err != nil {
@@ -32,6 +35,12 @@ func (a AgentRecordRepo) DeleteAllAgentRecords(ctx context.Context, agent_id int
 }
 
 func (a AgentRecordRepo) CreateAgentRecord(ctx context.Context, agentRecord domain.AgentRecord) error {
+	if agentRecord.AgentID() <= 0 {
+		return fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
+	}
+	if agentRecord.Status() != "well" && agentRecord.Status() != "with_errors" {
+		return fmt.Errorf("%w: status", domain.ErrInvalidStatus)
+	}
 
 	agentRecordParams := domainToDBagentRecordParams(agentRecord)
 
@@ -46,12 +55,12 @@ func (a AgentRecordRepo) CreateAgentRecord(ctx context.Context, agentRecord doma
 
 func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, agent_id int32, status string) ([]time.Time, error) {
 
-	if agent_id == 0 {
-		return []time.Time{}, fmt.Errorf("%w: id", domain.ErrRequired)
+	if agent_id <= 0 {
+		return []time.Time{}, fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
 	}
 
 	if status != "well" && status != "with_errors" {
-		return []time.Time{}, fmt.Errorf("%w: id", domain.ErrRequired)
+		return []time.Time{}, fmt.Errorf("%w: status", domain.ErrInvalidStatus)
 	}
 
 	arg := db.GetAgentRecordsByAgentIDandStatusParams{
@@ -71,8 +80,8 @@ func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, 
 }
 func (a AgentRecordRepo) GetAgentRecordsByAgentID(ctx context.Context, agent_id int32) ([]time.Time, error) {
 
-	if agent_id == 0 {
-		return []time.Time{}, fmt.Errorf("%w: id", domain.ErrRequired)
+	if agent_id <= 0 {
+		return []time.Time{}, fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
 	}
 	times, err := a.query.GetAgentRecordsByAgentID(ctx, agent_id)
 	if err != nil {

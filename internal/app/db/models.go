@@ -6,6 +6,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,18 +38,20 @@ type Study struct {
 }
 
 type UserRequest struct {
-	ID          uuid.UUID      `json:"id"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	Status      string         `json:"status"`
-	UserID      string         `json:"user_id"`
-	RequestType string         `json:"request_type"`
-	Command     sql.NullString `json:"command"`
-	StudyID     sql.NullString `json:"study_id"`
-	XaID        sql.NullString `json:"xa_id"`
-	CtID        sql.NullString `json:"ct_id"`
-	StudyFilter sql.NullString `json:"study_filter"`
-	XaFilter    sql.NullString `json:"xa_filter"`
-	CtFilter    sql.NullString `json:"ct_filter"`
-	ErrorLog    sql.NullString `json:"error_log"`
+	ID             uuid.UUID       `json:"id"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	AvailableAt    time.Time       `json:"available_at"`
+	LeaseExpiresAt sql.NullTime    `json:"lease_expires_at"`
+	CompletedAt    sql.NullTime    `json:"completed_at"`
+	Status         string          `json:"status"`
+	UserID         string          `json:"user_id"`
+	AgentID        int32           `json:"agent_id"`
+	RequestType    string          `json:"request_type"`
+	Command        string          `json:"command"`
+	Payload        json.RawMessage `json:"payload"`
+	Result         json.RawMessage `json:"result"`
+	ErrorLog       sql.NullString  `json:"error_log"`
+	AttemptCount   int32           `json:"attempt_count"`
+	MaxAttempts    int32           `json:"max_attempts"`
 }

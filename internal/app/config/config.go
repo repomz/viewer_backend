@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -15,24 +17,22 @@ type Config struct {
 
 // Read reads config from environment.
 func Read() Config {
-	var config Config
+	_ = godotenv.Load()
 
-	godotenv.Load()
-
-	httpAddr, exists := os.LookupEnv("HTTP_ADDR")
-	if exists {
-		config.HTTPAddr = httpAddr
+	config := Config{
+		HTTPAddr:       strings.TrimSpace(os.Getenv("HTTP_ADDR")),
+		DB_DSN:         strings.TrimSpace(os.Getenv("DB_DSN")),
+		MigrationsPath: strings.TrimSpace(os.Getenv("MIGRATIONS_DIR")),
 	}
-	// dsn, exists := os.LookupEnv("DB_DSN")
-	// fmt.Println(dsn)
-	// if exists {
-	// 	config.DB_DSN = dsn
-	// }
-	config.DB_DSN = os.Getenv("DB_DSN")
-
-	migrationsPath, exists := os.LookupEnv("MIGRATIONS_DIR")
-	if exists {
-		config.MigrationsPath = migrationsPath
+	if config.HTTPAddr == "" {
+		config.HTTPAddr = ":8080"
 	}
 	return config
+}
+
+func (c Config) Validate() error {
+	if c.DB_DSN == "" {
+		return errors.New("DB_DSN is required")
+	}
+	return nil
 }

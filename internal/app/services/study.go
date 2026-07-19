@@ -43,8 +43,8 @@ func (s StudyService) DeleteAllStudies(ctx context.Context) error {
 	return s.repo.DeleteAllStudies(ctx)
 }
 
-func (s StudyService) GetAllStudies(ctx context.Context, categoryIDs []int, limit, offset int) ([]domain.Study, error) {
-	return s.repo.GetAllStudies(ctx, categoryIDs, limit, offset)
+func (s StudyService) GetAllStudies(ctx context.Context, limit, offset int) ([]domain.Study, error) {
+	return s.repo.GetAllStudies(ctx, limit, offset)
 }
 
 func (s StudyService) GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error) {

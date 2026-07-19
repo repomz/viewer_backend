@@ -1,66 +1,95 @@
 -- name: CreateUserRequest :one
 INSERT INTO user_requests (
-    status, user_id, request_type, command, 
-    study_id, xa_id, ct_id, 
-    study_filter, xa_filter, ct_filter,
-    error_log
+    user_id,
+    agent_id,
+    request_type,
+    command,
+    payload,
+    max_attempts
 )
-VALUES (
-    'pending', $1, $2, $3, 
-    $4, $5, $6, 
-    $7, $8, $9,
-    NULL
-)
-RETURNING id; 
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
 
--- name: GetAndProcessNextUserRequest :one
-UPDATE user_requests
-SET 
-    status = 'in_process',
-    updated_at = NOW()
-WHERE id = (
-    SELECT id 
-    FROM user_requests 
-    WHERE 
-        status = 'pending'
-        OR (
-            status = 'in_process' 
-            AND updated_at < NOW() - CASE 
-                WHEN request_type IN ('find_study', 'find_xa', 'find_ct', 'execute_command') THEN INTERVAL '5 minutes'
-                WHEN request_type IN ('get_xa', 'get_ct') THEN INTERVAL '15 minutes'
-                ELSE INTERVAL '30 minutes' -- Дефолтный таймаут на случай появления новых типов
-            END
-        )
-    ORDER BY created_at ASC 
+-- name: ClaimNextUserRequest :one
+WITH next_request AS (
+    SELECT id
+    FROM user_requests
+    WHERE user_requests.agent_id = $1
+      AND user_requests.attempt_count < user_requests.max_attempts
+      AND (
+          (status = 'pending' AND available_at <= NOW())
+          OR (status = 'in_process' AND lease_expires_at <= NOW())
+      )
+    ORDER BY available_at ASC, created_at ASC
+    FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
-RETURNING *;
+UPDATE user_requests AS request
+SET status = 'in_process',
+    attempt_count = request.attempt_count + 1,
+    updated_at = NOW(),
+    lease_expires_at = NOW() + INTERVAL '5 minutes'
+FROM next_request
+WHERE request.id = next_request.id
+RETURNING request.*;
 
 -- name: CompleteUserRequest :one
 UPDATE user_requests
-SET 
-    status = 'completed',
-    updated_at = NOW()
-WHERE id = $1 AND status = 'in_process'
+SET status = 'completed',
+    result = $3,
+    error_log = NULL,
+    updated_at = NOW(),
+    completed_at = NOW(),
+    lease_expires_at = NULL
+WHERE id = $1
+  AND agent_id = $2
+  AND status = 'in_process'
+RETURNING *;
+
+-- name: RetryUserRequest :one
+UPDATE user_requests
+SET status = CASE
+        WHEN attempt_count < max_attempts THEN 'pending'
+        ELSE 'failed'
+    END,
+    error_log = $3,
+    updated_at = NOW(),
+    available_at = NOW() + INTERVAL '30 seconds',
+    lease_expires_at = NULL,
+    completed_at = CASE
+        WHEN attempt_count < max_attempts THEN NULL
+        ELSE NOW()
+    END
+WHERE id = $1
+  AND agent_id = $2
+  AND status = 'in_process'
 RETURNING *;
 
 -- name: FailUserRequest :one
 UPDATE user_requests
-SET 
-    status = 'failed',
+SET status = 'failed',
+    error_log = $3,
     updated_at = NOW(),
-    error_log = $2
-WHERE id = $1 AND status = 'in_process'
+    completed_at = NOW(),
+    lease_expires_at = NULL
+WHERE id = $1
+  AND agent_id = $2
+  AND status = 'in_process'
 RETURNING *;
 
+-- name: GetUserRequestByID :one
+SELECT *
+FROM user_requests
+WHERE id = $1;
+
 -- name: GetOldRequestsForArchive :many
-SELECT * 
+SELECT *
 FROM user_requests
 WHERE status IN ('completed', 'failed')
-  AND updated_at < NOW() - INTERVAL '3 days'
-ORDER BY updated_at ASC;
+  AND completed_at < NOW() - INTERVAL '3 days'
+ORDER BY completed_at ASC;
 
 -- name: DeleteOldRequests :exec
 DELETE FROM user_requests
 WHERE status IN ('completed', 'failed')
-  AND updated_at < NOW() - INTERVAL '3 days';
+  AND completed_at < NOW() - INTERVAL '3 days';

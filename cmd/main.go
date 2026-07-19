@@ -27,36 +27,45 @@ func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-	os.Exit(0)
 }
 
-func Dial(dsn string) (*db.Queries, error) {
+func Dial(ctx context.Context, dsn string) (*sql.DB, *db.Queries, error) {
 	if dsn == "" {
-		return nil, errors.New("no postgres DSN provided")
+		return nil, nil, errors.New("no postgres DSN provided")
 	}
 
 	dbase, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("sql.Open failed: %w", err)
+		return nil, nil, fmt.Errorf("sql.Open failed: %w", err)
 	}
 
+	dbase.SetMaxOpenConns(20)
 	dbase.SetMaxIdleConns(10)
-	dbase.SetMaxIdleConns(10)
-	dbase.SetConnMaxLifetime(1 * time.Minute)
+	dbase.SetConnMaxLifetime(5 * time.Minute)
+	dbase.SetConnMaxIdleTime(1 * time.Minute)
 
-	dbQueries := db.New(dbase)
+	if err := dbase.PingContext(ctx); err != nil {
+		_ = dbase.Close()
+		return nil, nil, fmt.Errorf("postgres ping failed: %w", err)
+	}
 
-	return dbQueries, nil
+	return dbase, db.New(dbase), nil
 }
 
 func run() error {
 	// read config from env
 	cfg := config.Read()
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
 
-	pgDB, err := Dial(cfg.DB_DSN)
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelDial()
+	sqlDB, pgDB, err := Dial(dialCtx, cfg.DB_DSN)
 	if err != nil {
 		return fmt.Errorf("pg.Dial failed: %w", err)
 	}
+	defer sqlDB.Close()
 
 	// run Postgres migrations
 	// if pgDB != nil {
@@ -70,24 +79,33 @@ func run() error {
 
 	studyRepo := pgrepo.NewStudyRepo(pgDB)
 	agentRecordRepo := pgrepo.NewAgentRecordRepo(pgDB)
+	userRequestRepo := pgrepo.NewUserRequestRepo(pgDB)
 
 	studyService := services.NewStudyService(studyRepo)
 	agentRecordsService := services.NewAgentRecordsService(agentRecordRepo)
+	userRequestService := services.NewUserRequestService(userRequestRepo)
 
 	// create http server with application injected
-	httpServer := httpserver.NewHttpServer(studyService, agentRecordsService)
+	httpServer := httpserver.NewHttpServer(studyService, agentRecordsService, userRequestService)
 
 	// create http router
-	router := mux.NewRouter()
+	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("DICOM viewer API v0.1"))
 	}).Methods("GET")
 
 	router.HandleFunc("/studies", httpServer.GetAllStudies).Methods(http.MethodGet)
 	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
+	router.HandleFunc("/studies", httpServer.CreateStudy).Methods(http.MethodPost)
+	router.HandleFunc("/studies/search", httpServer.GetStudiesByFilter).Methods(http.MethodGet)
+	router.HandleFunc("/studies/patient/{patient}", httpServer.GetStudyByPatient).Methods(http.MethodGet)
+	router.HandleFunc("/studies/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
+	router.HandleFunc("/studies/{study_id}/dicom-link", httpServer.UpdateStudy).Methods(http.MethodPatch)
+	router.HandleFunc("/studies/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
+
+	// Backward-compatible singular routes.
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
 	router.HandleFunc("/study/patient/{patient}", httpServer.GetStudyByPatient).Methods(http.MethodGet)
-	router.HandleFunc("/studies/search", httpServer.GetStudiesByFilter).Methods(http.MethodGet)
 	router.HandleFunc("/study", httpServer.CreateStudy).Methods(http.MethodPost)
 	router.HandleFunc("/study/{study_id}", httpServer.UpdateStudy).Methods(http.MethodPatch)
 	router.HandleFunc("/study/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
@@ -97,9 +115,18 @@ func run() error {
 	router.HandleFunc("/agent_status/searchby_id", httpServer.GetAgentRecordsByAgentID).Methods(http.MethodGet)
 	router.HandleFunc("/agent_status/searchby_status", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
 
+	router.HandleFunc("/user_requests", httpServer.CreateUserRequest).Methods(http.MethodPost)
+	router.HandleFunc("/user_requests", httpServer.ClaimUserRequest).Methods(http.MethodGet)
+	router.HandleFunc("/user_requests/{request_id}", httpServer.GetUserRequest).Methods(http.MethodGet)
+	router.HandleFunc("/user_requests/{request_id}/result", httpServer.RecordUserRequestResult).Methods(http.MethodPost)
+
 	srv := &http.Server{
-		Addr:    cfg.HTTPAddr,
-		Handler: router,
+		Addr:              cfg.HTTPAddr,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// listen to OS signals and gracefully shutdown HTTP server
@@ -120,7 +147,7 @@ func run() error {
 
 	// start HTTP server
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatalf("HTTP server ListenAndServe Error: %v", err)
+		return fmt.Errorf("HTTP server ListenAndServe: %w", err)
 	}
 
 	<-stopped
