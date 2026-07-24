@@ -28,8 +28,8 @@ docker compose up -d --build --wait --remove-orphans
 нужно заменить пароль одновременно в `ohif-orthanc/orthanc.json` и Basic Auth
 заголовке `ohif-orthanc/nginx_ohif.conf`, а HTTP закрыть TLS reverse proxy.
 
-Состояние PostgreSQL, Orthanc и агента хранится в named volumes. Остановка без
-удаления данных:
+Состояние PostgreSQL и Orthanc хранится в named volumes. Остановка без удаления
+данных:
 
 ```bash
 docker compose down
