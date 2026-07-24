@@ -15,13 +15,31 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /out/viewer-backend \
     ./cmd
 
-FROM alpine:3.22
+FROM golang:1.25.7-alpine AS migration-build
+
+ARG GOOSE_VERSION=v3.27.1
+RUN CGO_ENABLED=0 GOBIN=/out go install \
+    -tags="no_clickhouse no_libsql no_mssql no_mysql no_sqlite3 no_vertica no_ydb" \
+    github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
+
+FROM alpine:3.22 AS runtime-base
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 app \
     && adduser -S -D -H -u 10001 -G app app
 
 WORKDIR /app
+
+FROM runtime-base AS migrations
+
+COPY --from=migration-build /out/goose /usr/local/bin/goose
+COPY internal/sql/migrations /app/migrations
+
+USER app
+
+ENTRYPOINT ["/usr/local/bin/goose", "-dir", "/app/migrations"]
+
+FROM runtime-base AS runtime
 
 COPY --from=build /out/viewer-backend /usr/local/bin/viewer-backend
 COPY internal/sql/migrations /app/migrations

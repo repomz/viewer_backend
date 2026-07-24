@@ -1,0 +1,54 @@
+{
+  "Name": "M A P D R",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory": "/var/lib/orthanc/db",
+  "StorageCompression": true,
+  "MaximumStorageSize": 0,
+  "MaximumPatientCount": 0,
+  "Plugins": [
+    "/usr/share/orthanc/plugins",
+    "/usr/local/share/orthanc/plugins"
+  ],
+  "HttpServerEnabled": true,
+  "OrthancExplorerEnabled": true,
+  "HttpPort": 8042,
+  "HttpDescribeErrors": true,
+  "HttpCompressionEnabled": true,
+  "DicomServerEnabled": true,
+  "DicomAet": "MAPDR",
+  "DicomCheckCalledAet": true,
+  "DicomPort": 4242,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": true,
+  "RegisteredUsers": {
+    "mapdr": "changestrongpassword"
+  },
+  "DicomAlwaysAllowEcho": true,
+  "DicomAlwaysAllowStore": true,
+  "DicomAlwaysAllowFind": false,
+  "DicomAlwaysAllowFindWorklist": false,
+  "DicomAlwaysAllowGet": false,
+  "DicomAlwaysAllowMove": false,
+  "DicomCheckModalityHost": false,
+  "DicomModalities": {
+    "hospital-agent": [
+      "HOSPITAL_AGENT",
+      "agent",
+      11112
+    ]
+  },
+  "DicomModalitiesInDatabase": false,
+  "DicomScuTimeout": 30,
+  "DicomThreadsCount": 4,
+  "HttpTimeout": 60,
+  "HttpsVerifyPeers": true,
+  "KeepAlive": true,
+  "TcpNoDelay": true,
+  "HttpThreadsCount": 50,
+  "StoreDicom": true,
+  "QueryRetrieveSize": 100,
+  "CaseSensitivePN": false,
+  "MetricsEnabled": true,
+  "SaveJobs": true,
+  "StorageAccessOnFind": "Always"
+}
