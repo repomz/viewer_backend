@@ -2,14 +2,6 @@
 
 ## Полный запуск одной командой
 
-Репозитории должны лежать рядом:
-
-```text
-viewer/
-├── viewer_backend/
-└── agent/
-```
-
 Первичная настройка:
 
 ```bash
@@ -17,10 +9,10 @@ cd viewer_backend
 cp .env.compose.example .env
 ```
 
-Запуск PostgreSQL, миграций, backend, hospital agent, Orthanc PACS и OHIF:
+Запуск PostgreSQL, миграций, backend, Orthanc PACS и OHIF:
 
 ```bash
-docker compose up -d --build --wait
+docker compose up -d --build --wait --remove-orphans
 ```
 
 После запуска:
@@ -53,14 +45,14 @@ docker compose down --volumes
 
 ```bash
 docker compose ps
-docker compose logs -f backend agent pacs ohif
+docker compose logs -f backend pacs ohif
 ```
 
 ## Образы из registry
 
-В `.env` можно заменить `BACKEND_IMAGE`, `BACKEND_MIGRATIONS_IMAGE` и
-`AGENT_IMAGE` на адреса опубликованных образов. На сервере с исходниками
-доступна одна команда с принудительным получением свежих образов:
+В `.env` можно заменить `BACKEND_IMAGE` и `BACKEND_MIGRATIONS_IMAGE` на
+адреса опубликованных образов. На сервере с исходниками доступна одна команда
+с принудительным получением свежих образов:
 
 ```bash
 docker compose up -d --pull always --wait
@@ -121,10 +113,35 @@ docker buildx build \
 - healthcheck: `GET /`;
 - миграции: `/app/migrations`.
 
-## E2E с локальным PACS
+## Подключение больничного агента
 
-Agent подключён к `pacs:4242` с локальным AE Title `HOSPITAL_AGENT`.
-В контейнерном профиле включены только heartbeat и обработка `/user_requests`;
-сканирование больничных каталогов, CT и XA polling отключены. Тестовые DICOM
-можно импортировать через OHIF или REST API Orthanc, затем проверять команды
-агента на изолированном PACS без доступа к больничной сети.
+Hospital agent не запускается на сервере в Docker. Он работает непосредственно
+на больничном Windows-компьютере через `pythonw`.
+
+В его `agent_config.json` нужно указать:
+
+```json
+{
+  "viewer_url": "http://SERVER:8080"
+}
+```
+
+В `config.json` агента удалённый PACS настраивается так:
+
+```json
+{
+  "pacs": {
+    "ip": "SERVER",
+    "port": 4242,
+    "ae_title": "MAPDR"
+  },
+  "mapdrpacs": {
+    "ip": "SERVER",
+    "port": 4242,
+    "ae_title": "MAPDR"
+  }
+}
+```
+
+Где `SERVER` — доступный больничному компьютеру IP-адрес или DNS-имя сервера.
+Тестовые DICOM можно импортировать через OHIF или REST API Orthanc.

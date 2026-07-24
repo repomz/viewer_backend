@@ -103,35 +103,6 @@ services:
     networks:
       - pacs
 
-  agent:
-    image: ${AGENT_IMAGE:-hospital-agent:local}
-    build:
-      context: ${AGENT_BUILD_CONTEXT:-../agent}
-      dockerfile: Dockerfile
-      args:
-        VERSION: ${IMAGE_VERSION:-local}
-        VCS_REF: ${AGENT_VCS_REF:-unknown}
-    environment:
-      TZ: ${TZ:-Asia/Tomsk}
-      YANDEX_ACCESS_KEY_ID: ${YANDEX_ACCESS_KEY_ID:-}
-      YANDEX_SECRET_ACCESS_KEY: ${YANDEX_SECRET_ACCESS_KEY:-}
-      YANDEX_BUCKET: ${YANDEX_BUCKET:-}
-      YANDEX_ENDPOINT: ${YANDEX_ENDPOINT:-https://storage.yandexcloud.net}
-    volumes:
-      - ./deploy/agent/agent_config.json:/app/agent_config.json:ro
-      - ./deploy/agent/pacs.json:/config/pacs.json:ro
-      - agent-data:/data
-      - agent-work:/work
-    depends_on:
-      backend:
-        condition: service_healthy
-      pacs:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - application
-      - pacs
-
 networks:
   application:
     driver: bridge
@@ -141,5 +112,3 @@ networks:
 volumes:
   postgres-data:
   orthanc-data:
-  agent-data:
-  agent-work:
