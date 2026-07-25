@@ -18,6 +18,60 @@ Windows-компьютере через `pythonw` и подключается к
 - [Linux post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/);
 - [Docker packet filtering and firewalls](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
 
+## Автоматическая подготовка нового сервера
+
+Шаги 2–5 можно выполнить скриптом
+`scripts/prepare_ubuntu_server.sh`. Скрипт:
+
+- поддерживает Ubuntu Server 22.04/24.04 `amd64`;
+- устанавливает системные обновления и базовые утилиты;
+- удаляет конфликтующие Docker-пакеты;
+- подключает официальный APT-репозиторий Docker;
+- устанавливает Docker Engine, Buildx и Compose v2;
+- включает Docker в автозагрузку;
+- ограничивает размер контейнерных логов;
+- добавляет SSH-пользователя в группу `docker`;
+- создаёт `/opt/viewer`;
+- не клонирует репозиторий и не запускает приложение.
+
+Скопируйте скрипт с рабочего компьютера на новый сервер:
+
+```bash
+scp scripts/prepare_ubuntu_server.sh USER@SERVER_IP:/tmp/
+```
+
+Запустите на сервере:
+
+```bash
+ssh USER@SERVER_IP
+chmod +x /tmp/prepare_ubuntu_server.sh
+sudo /tmp/prepare_ubuntu_server.sh
+```
+
+Дополнительные параметры передаются через переменные окружения:
+
+```bash
+sudo SERVER_TIMEZONE=Asia/Tomsk \
+  INSTALL_DIR=/opt/viewer \
+  DOCKER_USER="$USER" \
+  UPGRADE_SYSTEM=1 \
+  /tmp/prepare_ubuntu_server.sh
+```
+
+Если скрипт сообщает о необходимости перезагрузки:
+
+```bash
+sudo reboot
+```
+
+После выполнения закройте SSH-сеанс и подключитесь снова, чтобы применилось
+членство в группе `docker`. Затем переходите к разделу
+«Сетевой доступ и firewall» и клонированию проекта.
+
+Скрипт намеренно не меняет статический IP, firewall или Security Group:
+универсальное автоматическое изменение этих настроек может заблокировать SSH
+и требует знания больничной сетевой схемы.
+
 ## 1. Требования к серверу
 
 Рекомендуемый минимум для тестового сервера:
