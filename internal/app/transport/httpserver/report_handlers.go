@@ -34,8 +34,17 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}
-	if request.AgentID <= 0 || request.Report == nil {
+	if request.AgentID <= 0 || len(request.Report) == 0 {
 		server.BadRequest("invalid-report", fmt.Errorf("agent_id and report are required"), w, r)
+		return
+	}
+	if _, err := time.Parse(time.RFC3339, request.GeneratedAt); err != nil {
+		server.BadRequest(
+			"invalid-report",
+			fmt.Errorf("generated_at must be RFC3339: %w", err),
+			w,
+			r,
+		)
 		return
 	}
 	directory := reportsDirectory()

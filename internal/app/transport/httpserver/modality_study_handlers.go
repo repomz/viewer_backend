@@ -96,7 +96,7 @@ func parseDICOMDateTime(dateValue, timeValue string) time.Time {
 		time.Local,
 	)
 	if err != nil {
-		return time.Now()
+		return time.Time{}
 	}
 	return parsed
 }

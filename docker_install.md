@@ -39,7 +39,6 @@ Windows-компьютере через `pythonw` и подключается к
 ```bash
 scp scripts/prepare_ubuntu_server.sh USER@SERVER_IP:/tmp/
 ```
-scp scripts/prepare_ubuntu_server.sh root@135.106.130.37:/tmp/
 
 Запустите на сервере:
 
@@ -254,8 +253,8 @@ docker compose version
 | `22` | SSH | только администраторы |
 | `8080` | Viewer Backend API | больничные агенты и доверенные клиенты |
 | `3000` | OHIF Viewer | пользователи больничной сети |
-| `8042` | Orthanc HTTP/REST | агенты и администраторы |
-| `4242` | Orthanc DICOM | доверенные DICOM-устройства и агенты |
+| `8042` | Orthanc HTTP/REST | администраторы; backend использует внутреннюю Docker-сеть |
+| `4242` | Orthanc DICOM | только доверенные DICOM-устройства, если нужен DIMSE-импорт |
 
 PostgreSQL наружу не публикуется.
 
@@ -340,6 +339,12 @@ BACKEND_PORT=8080
 ORTHANC_HTTP_PORT=8042
 ORTHANC_DICOM_PORT=4242
 OHIF_PORT=3000
+REPORTS_DIR=/app/reports
+
+REMOTE_PACS_URL=http://pacs:8042/instances
+REMOTE_PACS_USERNAME=mapdr
+REMOTE_PACS_PASSWORD=ЗАМЕНИТЕ_ПАРОЛЬ_ORTHANC
+REMOTE_PACS_TIMEOUT_SECONDS=300
 
 BACKEND_IMAGE=viewer-backend:local
 BACKEND_MIGRATIONS_IMAGE=viewer-backend-migrations:local
@@ -387,11 +392,12 @@ mapdr / changestrongpassword
 ```
 
 Перед подключением реальной больничной сети его необходимо заменить. Пароль
-используется в трёх местах:
+используется в четырёх местах:
 
 1. `ohif-orthanc/orthanc.json` — `RegisteredUsers`;
 2. `ohif-orthanc/nginx_ohif.conf` — заголовок `Authorization`;
 3. `compose.yaml` — healthcheck сервиса `pacs`.
+4. `.env` — `REMOTE_PACS_PASSWORD` для импорта backend → Orthanc.
 
 Сгенерируйте отдельный пароль:
 
@@ -399,8 +405,8 @@ mapdr / changestrongpassword
 openssl rand -hex 24
 ```
 
-Оставьте имя пользователя `mapdr`, замените пароль в `orthanc.json` и
-healthcheck в `compose.yaml`.
+Оставьте имя пользователя `mapdr`, замените пароль в `orthanc.json`,
+healthcheck в `compose.yaml` и `REMOTE_PACS_PASSWORD` в `.env`.
 
 Для Nginx вычислите Basic Auth:
 
@@ -570,25 +576,33 @@ Hospital Agent устанавливается отдельно на Windows-ко
 }
 ```
 
-В `config.json`:
+В `config.json` указывается локальный больничный PACS, из которого агент
+выполняет C-FIND и C-GET:
 
 ```json
 {
   "pacs": {
-    "ip": "SERVER_IP",
-    "port": 4242,
-    "ae_title": "MAPDR"
-  },
-  "mapdrpacs": {
-    "ip": "SERVER_IP",
-    "port": 4242,
-    "ae_title": "MAPDR"
+    "ip": "HOSPITAL_PACS_IP",
+    "port": 11112,
+    "ae_title": "HOSPITAL_PACS_AE"
   },
   "local": {
     "ae_title": "HOSPITAL_AGENT"
   }
 }
 ```
+
+Yandex Object Storage задаётся переменными окружения на больничном компьютере:
+
+```text
+YANDEX_ACCESS_KEY_ID
+YANDEX_SECRET_ACCESS_KEY
+YANDEX_BUCKET
+YANDEX_ENDPOINT
+```
+
+Адрес серверного Orthanc в команды агента не передаётся: backend берёт его из
+`REMOTE_PACS_URL`.
 
 Запуск без консольного окна:
 
@@ -647,7 +661,7 @@ docker compose up -d --wait --remove-orphans
 docker compose down --volumes
 ```
 
-Она удаляет базу PostgreSQL и DICOM-хранилище Orthanc.
+Она удаляет базу PostgreSQL, DICOM-хранилище Orthanc и сохранённые JSON-отчёты.
 
 ## 16. Резервное копирование
 
@@ -688,6 +702,17 @@ sudo docker run --rm \
   alpine:3.22 \
   sh -c 'tar -czf /backup/orthanc-$(date +%F-%H%M%S).tar.gz -C /source .'
 docker compose up -d --wait pacs
+```
+
+### JSON-отчёты
+
+```bash
+cd /opt/viewer/viewer_backend
+sudo docker run --rm \
+  -v viewer_reports-data:/source:ro \
+  -v /var/backups/viewer:/backup \
+  alpine:3.22 \
+  sh -c 'tar -czf /backup/reports-$(date +%F-%H%M%S).tar.gz -C /source .'
 ```
 
 Скопируйте резервные копии на другой сервер или защищённое хранилище.

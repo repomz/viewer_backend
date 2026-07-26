@@ -21,7 +21,11 @@ test: ## Запуск тестов
 	go test -race -v ./...
 
 clean: ## Очистка артефактов сборки
-	rm -rf $(BUILD_DIR)
+	@case "$(BUILD_DIR)" in \
+		""|"/"|"."|"./"|".."|"../"|"../"*|"./.."|"./../"*) \
+			echo "Refusing unsafe BUILD_DIR=$(BUILD_DIR)"; exit 1 ;; \
+	esac
+	rm -rf -- "$(BUILD_DIR)"
 
 
 # --- Создание базы данных и пользователя---
@@ -43,8 +47,12 @@ migrate-down: ## Откатить последнюю миграцию
 	goose -dir $(MIGRATIONS_DIR) $(DB_DRIVER) $(DB_DSN) down
 
 migrate-create: ## Создать новый файл миграции (использование: make migrate-create name=add_users_table)
-	@read -p "Название миграции: " name; \
-	goose -dir $(MIGRATIONS_DIR) create $$name sql
+	@if [ -n "$(name)" ]; then \
+		goose -dir "$(MIGRATIONS_DIR)" create "$(name)" sql; \
+	else \
+		read -p "Название миграции: " migration_name; \
+		goose -dir "$(MIGRATIONS_DIR)" create "$$migration_name" sql; \
+	fi
 
 # --- Линтеры ---
 

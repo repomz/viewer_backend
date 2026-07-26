@@ -1,130 +1,97 @@
+# Локальная проверка viewer_backend
+
+## Миграции и запуск
+
 ```bash
-# Миграции:
-goose -dir ./internal/sql/migrations postgres "postgres://marat:postgresd@localhost:5432/angio_db?sslmode=disable" status
-goose -dir ./internal/sql/migrations postgres "postgres://marat:postgresd@localhost:5432/angio_db?sslmode=disable" up
-goose -dir ./internal/sql/migrations postgres "postgres://marat:postgresd@localhost:5432/angio_db?sslmode=disable" down
+export DB_DSN="postgres://viewer:viewer-local-password@localhost:5432/viewer?sslmode=disable"
+goose -dir ./internal/sql/migrations postgres "$DB_DSN" status
+goose -dir ./internal/sql/migrations postgres "$DB_DSN" up
 ```
 
 ```bash
-# Запуск API:
-HTTP_ADDR=:8080 \
-DB_DSN="postgres://marat:postgresd@localhost:5432/angio_db?sslmode=disable" \
-DEBUG_ERRORS=1 \
-go run ./cmd/main.go
+HTTP_ADDR=:8080 DB_DSN="$DB_DSN" go run ./cmd
+```
+
+В другом терминале:
+
+```bash
+BACKEND_URL="http://localhost:8080"
+curl -sS --fail-with-body "$BACKEND_URL/"
+```
+
+## Чтение и фильтрация исследований
+
+```bash
+curl -sS --fail-with-body \
+  "$BACKEND_URL/studies?page=1&page_size=10" |
+  jq
 ```
 
 ```bash
-# Проверка, что API жив
-curl -sS http://localhost:8080/
-
-# Просмотр всех studies в базе данных, ожидается 30 активных записей
-curl -sS http://localhost:8080/studies | jq 'length'
-
-# Получение конкретного study по uuid
-curl -sS http://localhost:8080/studies/b28ca40a-6943-4404-b797-33b4b43e5c4e \
-  | jq '{id, patient, surgeon, study_type}'
-
-# Получение study по пациенту. Для кириллицы и пробелов используем URL-encoding.
-patient=$(jq -nr --arg v 'Николаев П.С.' '$v|@uri')
-curl -sS "http://localhost:8080/studies/patient/$patient" \
-  | jq '{id, patient, surgeon, study_type}'
+curl -sS --fail-with-body -G "$BACKEND_URL/studies/search" \
+  --data-urlencode "study_date=2026-07-26" \
+  --data-urlencode "surgeon=идрисов" \
+  --data-urlencode "study_type=каг" |
+  jq
 ```
 
 ```bash
-# Фильтрация studies
-
-# Поиск по дате, ожидается 3
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'date=2025-05-13' \
-  | jq 'length'
-
-# Поиск по хирургу, ожидается 4
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'surgeon=идрисов' \
-  | jq 'length'
-
-# Поиск по типу операции, ожидается 4
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'type=каг' \
-  | jq 'length'
-
-# Поиск по дате + хирург
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'date=2025-05-13' \
-  --data-urlencode 'surgeon=идрисов' \
-  | jq 'length'
-
-# Поиск по дате + тип операции
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'date=2025-05-13' \
-  --data-urlencode 'type=стент_кор' \
-  | jq 'length'
-
-# Поиск по хирургу + тип операции
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'surgeon=идрисов' \
-  --data-urlencode 'type=стент_кор' \
-  | jq 'length'
-
-# Поиск по всем трём фильтрам, ожидается 1
-curl -sS -G http://localhost:8080/studies \
-  --data-urlencode 'date=2025-05-13' \
-  --data-urlencode 'surgeon=идрисов' \
-  --data-urlencode 'type=стент_кор' \
-  | jq 'length'
+PATIENT=$(jq -nr --arg value "Иванов И.И." '$value|@uri')
+curl -sS --fail-with-body \
+  "$BACKEND_URL/studies/patient/$PATIENT" |
+  jq
 ```
 
+## Безопасный CRUD-тест одной временной записи
+
 ```bash
-# Создание временного исследования, обновление dicom_link и удаление только этой временной записи
-created=$(curl -sS -X POST -H "Content-Type: application/json" \
+CREATED=$(curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/studies" \
+  -H "Content-Type: application/json" \
   -d '{
-    "study_id": "TEST-CURL-001",
-    "patient": "Тестовый Пациент",
-    "age": 50,
-    "department": "тест",
-    "name_operation": "Тестовая операция",
-    "study_type": "каг",
-    "descr_operation": "Проверка curl",
-    "time_beginning": "2026-06-12T11:13:00Z",
-    "time_duration": 15,
-    "surgeon": "идрисов",
-    "dicom_link": "https://pacs/dicom/test-curl-001"
+    "study_id":"TEST-EXAMPLE-001",
+    "patient":"Тестовый Пациент",
+    "age":50,
+    "department":"тест",
+    "name_operation":"Тестовая операция",
+    "study_type":"тест",
+    "descr_operation":"Локальная проверка API",
+    "time_beginning":"2026-07-26T11:13:00Z",
+    "time_duration":15,
+    "surgeon":"тестовый",
+    "dicom_link":""
   }' \
-  http://localhost:8080/studies)
+  "$BACKEND_URL/studies")
 
-echo "$created" | jq '{id, study_id, patient, dicom_link}'
-id=$(echo "$created" | jq -r '.id')
-
-curl -sS -X PATCH -H "Content-Type: application/json" \
-  -d '{"dicom_link": "https://new-link.com"}' \
-  "http://localhost:8080/studies/$id/dicom-link" \
-  | jq '{id, dicom_link}'
-
-curl -sS -X DELETE "http://localhost:8080/studies/$id" | jq
-
-# После удаления временной записи снова ожидается 30
-curl -sS http://localhost:8080/studies | jq 'length'
+printf '%s\n' "$CREATED" | jq
+STUDY_UUID=$(printf '%s' "$CREATED" | jq -r '.id')
 ```
 
 ```bash
-# Посмотреть структуру ответа
-curl -sS http://localhost:8080/studies | jq 'type'
-
-# Посмотреть первый элемент
-curl -sS http://localhost:8080/studies | jq '.[0]'
+curl -sS --fail-with-body \
+  -X PATCH "$BACKEND_URL/studies/$STUDY_UUID/dicom-link" \
+  -H "Content-Type: application/json" \
+  -d '{"dicom_link":"https://example.invalid/test"}' |
+  jq
 ```
 
 ```bash
-# ОПАСНО: удаление всех studies в базе данных.
-# Не запускать при проверке заполненной базы на 30 пациентов.
-curl -sS -X DELETE http://localhost:8080/studies | jq
+curl -sS --fail-with-body \
+  -X DELETE "$BACKEND_URL/studies/$STUDY_UUID" |
+  jq
 ```
 
+## Проверка исходников
 
 ```bash
-sqlc generate -f sqlc/sqlc.yaml
-./bin/rest app generate
-
+sqlc generate -f sqlc.yaml
 go test ./...
+go test -race ./...
 go vet ./...
+go build ./cmd
+docker compose config -q
+git diff --check
 ```
+
+Примеры очереди агента находятся в `testing_user_requests.md`, а расширенные
+примеры исследований и отчётов — в `testing_studies.md`.

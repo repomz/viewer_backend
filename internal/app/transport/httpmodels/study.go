@@ -54,6 +54,9 @@ func (s *StudyRequest) Validate() error {
 	if s.DescrOperation == "" {
 		return fmt.Errorf("%w: descr_operation", domain.ErrRequired)
 	}
+	if s.TimeBeginning.IsZero() {
+		return fmt.Errorf("%w: time_beginning", domain.ErrRequired)
+	}
 	if s.TimeDuration < 0 {
 		return fmt.Errorf("%w: time_duration", domain.ErrNegative)
 	}

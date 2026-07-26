@@ -28,8 +28,8 @@ docker compose up -d --build --wait --remove-orphans
 нужно заменить пароль одновременно в `ohif-orthanc/orthanc.json` и Basic Auth
 заголовке `ohif-orthanc/nginx_ohif.conf`, а HTTP закрыть TLS reverse proxy.
 
-Состояние PostgreSQL и Orthanc хранится в named volumes. Остановка без удаления
-данных:
+Состояние PostgreSQL, Orthanc и JSON-отчётов хранится в named volumes. Остановка
+без удаления данных:
 
 ```bash
 docker compose down
@@ -110,6 +110,9 @@ docker buildx build \
 - процесс работает не от root, UID/GID `10001`;
 - порт: `8080`;
 - обязательная переменная: `DB_DSN`;
+- каталог отчётов: `REPORTS_DIR`;
+- remote PACS: `REMOTE_PACS_URL`, `REMOTE_PACS_USERNAME`,
+  `REMOTE_PACS_PASSWORD`, `REMOTE_PACS_TIMEOUT_SECONDS`;
 - healthcheck: `GET /`;
 - миграции: `/app/migrations`.
 
@@ -126,22 +129,18 @@ Hospital agent не запускается на сервере в Docker. Он �
 }
 ```
 
-В `config.json` агента удалённый PACS настраивается так:
+В `config.json` агента настраивается локальный больничный PACS, из которого
+агент выполняет C-FIND/C-GET:
 
 ```json
 {
   "pacs": {
-    "ip": "SERVER",
-    "port": 4242,
-    "ae_title": "MAPDR"
-  },
-  "mapdrpacs": {
-    "ip": "SERVER",
-    "port": 4242,
-    "ae_title": "MAPDR"
+    "ip": "HOSPITAL_PACS_IP",
+    "port": 11112,
+    "ae_title": "HOSPITAL_PACS_AE"
   }
 }
 ```
 
-Где `SERVER` — доступный больничному компьютеру IP-адрес или DNS-имя сервера.
-Тестовые DICOM можно импортировать через OHIF или REST API Orthanc.
+Импорт в серверный Orthanc выполняет backend. Его адрес и учётные данные
+задаются в `.env` через `REMOTE_PACS_*`, а не в пользовательской команде.

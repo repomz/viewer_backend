@@ -52,6 +52,7 @@ func TestStudyRequestRejectsMissingAndInvalidValues(t *testing.T) {
 		{"missing study id", func(r *StudyRequest) { r.StudyID = "" }, domain.ErrRequired},
 		{"negative age", func(r *StudyRequest) { r.Age = -1 }, domain.ErrNegative},
 		{"missing study type", func(r *StudyRequest) { r.StudyType = "" }, domain.ErrRequired},
+		{"missing operation time", func(r *StudyRequest) { r.TimeBeginning = time.Time{} }, domain.ErrRequired},
 		{"negative duration", func(r *StudyRequest) { r.TimeDuration = -1 }, domain.ErrNegative},
 		{"missing surgeon", func(r *StudyRequest) { r.Surgeon = "" }, domain.ErrRequired},
 	}

@@ -1,61 +1,62 @@
-Для вашего текущего адреса backend и агента №2:
+# Проверка пользовательских команд Hospital Agent
+
+Примеры соответствуют текущему контракту backend и агента. Выполняйте их с
+компьютера, имеющего доступ к backend:
 
 ```bash
 BACKEND_URL="http://135.106.130.37:8080"
 AGENT_ID=2
 ```
 
-Важно: порт `8080` должен быть доступен только из доверенной сети/VPN — API пока не имеет авторизации.
+API пока не имеет аутентификации. Порт `8080` должен быть доступен только из
+доверенной больничной сети или VPN.
 
-## 1. Создать отчёт за предыдущий операционный день
+## Общий жизненный цикл
 
-```bash
-curl -sS --fail-with-body -X POST "$BACKEND_URL/user_requests" -H "Content-Type: application/json" -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"request_type\":\"execute_command\",\"command\":\"generate_operations_report\",\"payload\":{\"period\":1,\"time\":\"08:00\"},\"max_attempts\":3}" | jq
-```
+Создание команды выполняется через `POST /user_requests`. В запросе используется
+только поле `command`; `action`, `type` и `request_type` не нужны.
 
-Команда создаёт отчёт от вчерашнего дня `08:00` до текущего момента. Это не строго календарные сутки `00:00–23:59` — текущая реализация агента задаёт начало периода, а концом всегда считает момент выполнения.
-
-Файлы появятся на больничном компьютере в стандартном каталоге:
-
-```text
-C:\Users\Angio_hir1\Desktop\План Отчеты\отчеты
-```
-
-Если нужны явные пути:
+После создания сохраните ID:
 
 ```bash
-curl -sS --fail-with-body -X POST "$BACKEND_URL/user_requests" -H "Content-Type: application/json" -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"generate_operations_report\",\"payload\":{\"period\":1,\"time\":\"08:00\",\"dir1\":\"C:\\\\Users\\\\Angio_hir1\\\\Desktop\\\\Операции 2026\",\"dir2\":\"C:\\\\Users\\\\Angio_hir1\\\\Desktop\\\\2026 Опер №2\",\"plan_dir\":\"C:\\\\Users\\\\Angio_hir1\\\\Desktop\\\\План Отчеты\",\"report_dir\":\"C:\\\\Users\\\\Angio_hir1\\\\Desktop\\\\План Отчеты\\\\отчеты\"},\"max_attempts\":3}" | jq
-```
-
-## 2. Сохранить ID и следить за выполнением
-
-```bash
-RESPONSE=$(curl -sS --fail-with-body -X POST "$BACKEND_URL/user_requests" -H "Content-Type: application/json" -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"generate_operations_report\",\"payload\":{\"period\":1,\"time\":\"08:00\"},\"max_attempts\":3}")
+RESPONSE=$(curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"get_report\",\"payload\":{\"period\":1},\"max_attempts\":3}")
 
 REQUEST_ID=$(printf '%s' "$RESPONSE" | jq -r '.id')
-
-echo "Request ID: $REQUEST_ID"
 printf '%s\n' "$RESPONSE" | jq
+echo "Request ID: $REQUEST_ID"
 ```
 
-Проверка результата:
+Проверка состояния:
 
 ```bash
-curl -sS --fail-with-body "$BACKEND_URL/user_requests/$REQUEST_ID" | jq '{id,status,attempt_count,result,error}'
+curl -sS --fail-with-body \
+  "$BACKEND_URL/user_requests/$REQUEST_ID" |
+  jq '{id,status,attempt_count,max_attempts,result,errors}'
 ```
 
-Автоматическое ожидание завершения:
+Ожидание terminal-статуса:
 
 ```bash
-while true; do RESPONSE=$(curl -sS --fail-with-body "$BACKEND_URL/user_requests/$REQUEST_ID"); printf '%s\n' "$RESPONSE" | jq '{status,attempt_count,result,error}'; STATUS=$(printf '%s' "$RESPONSE" | jq -r '.status'); [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]] && break; sleep 3; done
+while true; do
+  RESPONSE=$(curl -sS --fail-with-body \
+    "$BACKEND_URL/user_requests/$REQUEST_ID")
+  printf '%s\n' "$RESPONSE" |
+    jq '{status,attempt_count,max_attempts,result,errors}'
+  STATUS=$(printf '%s' "$RESPONSE" | jq -r '.status')
+  [[ "$STATUS" == "completed" || "$STATUS" == "error" ]] && break
+  sleep 3
+done
 ```
 
 Статусы:
 
-- `pending` — ожидает агента;
-- `in_process` — агент получил команду;
-- `completed` — успешно выполнена;
-- `failed` — выполнение окончательно завершилось ошибкой.
+- `pending` — команда ожидает агента или повторной попытки;
+- `in_progress` — агент забрал команду и выполняет её;
+- `completed` — команда выполнена;
+- `error` — окончательная ошибка, текст находится в поле `errors`.
 
 Не вызывайте вручную:
 
@@ -63,33 +64,95 @@ while true; do RESPONSE=$(curl -sS --fail-with-body "$BACKEND_URL/user_requests/
 GET /user_requests?agent_id=2
 ```
 
-Этот запрос не показывает список, а забирает следующую команду в работу и устанавливает lease.
+Этот endpoint не показывает список: он атомарно забирает следующую команду в
+работу, увеличивает `attempt_count` и устанавливает lease.
 
-## 3. Отчёт за последние 7 дней
+## get_report
 
-```bash
-curl -sS --fail-with-body -X POST "$BACKEND_URL/user_requests" -H "Content-Type: application/json" -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"generate_operations_report\",\"payload\":{\"period\":7,\"time\":\"08:00\"},\"max_attempts\":3}" | jq
-```
-
-## 4. Отправить локальный DICOM с больничного компьютера в Orthanc
-
-Путь относится именно к больничному компьютеру, где работает `pythonw`:
+Создать отчёт за одно предыдущее дежурство:
 
 ```bash
-curl -sS --fail-with-body -X POST "$BACKEND_URL/user_requests" -H "Content-Type: application/json" -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"send_dicom_to_mapdr\",\"payload\":{\"dicom_path\":\"C:\\\\DICOM\\\\test-study\",\"mapdr_host\":\"135.106.130.37\",\"mapdr_port\":8042,\"mapdr_username\":\"mapdr\",\"mapdr_password\":\"ПАРОЛЬ_ORTHANC\"},\"max_attempts\":3}" | jq
+curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"get_report\",\"payload\":{\"period\":1},\"max_attempts\":3}" |
+  jq
 ```
 
-Пароль сохранится в `payload` таблицы `user_requests` в открытом виде. Для production лучше доработать агент так, чтобы он брал учётные данные Orthanc из локального `config.json`, а не из команды.
+`period` — целое число от 1 до 4. Пути и время передавать нельзя: каталоги берутся
+из `agent_config.json`, а граница дежурства всегда равна 08:00. TXT сохраняется
+на больничном компьютере в `report_dir`, JSON — на backend через `/reports`.
 
-## 5. Скачать исследование из PACS и отправить в Yandex
-
-Замените UID на настоящий `StudyInstanceUID`:
+Просмотр последних отчётов:
 
 ```bash
-curl -sS --fail-with-body -X POST "$BACKEND_URL/user_requests" -H "Content-Type: application/json" -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"send_study_to_yandex\",\"payload\":{\"study_uid\":\"1.2.840.113619.2.55.3.604688123.123.1710000000.1\"},\"max_attempts\":3}" | jq
+curl -sS --fail-with-body "$BACKEND_URL/reports?limit=20" | jq
 ```
 
-На больничном компьютере должны быть доступны PACS и переменные окружения Yandex:
+Получение конкретного отчёта:
+
+```bash
+REPORT_FILE=$(curl -sS --fail-with-body "$BACKEND_URL/reports?limit=1" |
+  jq -r '.[0].filename')
+curl -sS --fail-with-body "$BACKEND_URL/reports/$REPORT_FILE" | jq
+```
+
+## find_ct и find_xa
+
+Поиск выполняется в локальном больничном PACS по фамилии и периоду. Допустимы
+`today`, `yesterday`, `week`, `month` или конкретная дата `YYYY-MM-DD`.
+
+```bash
+curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"find_ct\",\"payload\":{\"patient\":\"Иванов\",\"period\":\"week\"},\"max_attempts\":3}" |
+  jq
+```
+
+```bash
+curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"find_xa\",\"payload\":{\"patient\":\"Иванов\",\"period\":\"2026-07-26\"},\"max_attempts\":3}" |
+  jq
+```
+
+В `result.studies` после выполнения будут ФИО, дата, описание и
+`StudyInstanceUID`. Полученный UID используется в `get_ct` или `get_xa`.
+
+## get_ct и get_xa
+
+Замените UID на значение, выбранное из результата `find_ct`/`find_xa`:
+
+```bash
+STUDY_UID="1.2.840.113619.2.55.3.604688123.123.1710000000.1"
+```
+
+```bash
+curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"get_ct\",\"payload\":{\"study_uid\":\"$STUDY_UID\"},\"max_attempts\":3}" |
+  jq
+```
+
+Для XA изменяется только команда:
+
+```bash
+curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"get_xa\",\"payload\":{\"study_uid\":\"$STUDY_UID\"},\"max_attempts\":3}" |
+  jq
+```
+
+Агент выполняет прямой C-GET, проверяет полноту исследования, загружает все
+DICOM в Yandex и отправляет метаданные на `/ct_studies` или `/xa_studies`.
+Backend импортирует каждый файл в remote PACS до перевода команды в
+`completed`. Частичная передача завершается ошибкой.
+
+На больничном компьютере должны быть настроены:
 
 ```text
 YANDEX_ACCESS_KEY_ID
@@ -98,42 +161,96 @@ YANDEX_BUCKET
 YANDEX_ENDPOINT
 ```
 
-## 6. Посмотреть команды непосредственно в PostgreSQL
+На backend должны быть настроены `REMOTE_PACS_URL`,
+`REMOTE_PACS_USERNAME`, `REMOTE_PACS_PASSWORD` и
+`REMOTE_PACS_TIMEOUT_SECONDS`.
 
-На сервере:
+## find_study
+
+Поиск стандартизованных протоколов операций по фамилии в настроенных каталогах:
 
 ```bash
-cd /opt/viewer/viewer_backend
+curl -sS --fail-with-body \
+  -X POST "$BACKEND_URL/user_requests" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"find_study\",\"payload\":{\"patient\":\"Иванов\"},\"max_attempts\":3}" |
+  jq
+```
 
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, created_at, agent_id, command, status, attempt_count, error_log FROM user_requests ORDER BY created_at DESC;"'
+Результат содержит уже сокращённые `name_operation` и `descr_operation`. Локальные
+пути DOCX backend не получает.
+
+## Управление CT/XA polling
+
+Включение:
+
+```bash
+for COMMAND in ct_polling_on xa_polling_on; do
+  curl -sS --fail-with-body \
+    -X POST "$BACKEND_URL/user_requests" \
+    -H "Content-Type: application/json" \
+    -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"$COMMAND\",\"payload\":{},\"max_attempts\":3}" |
+    jq
+done
+```
+
+Выключение:
+
+```bash
+for COMMAND in ct_polling_off xa_polling_off; do
+  curl -sS --fail-with-body \
+    -X POST "$BACKEND_URL/user_requests" \
+    -H "Content-Type: application/json" \
+    -d "{\"user_id\":\"terminal-test\",\"agent_id\":$AGENT_ID,\"command\":\"$COMMAND\",\"payload\":{},\"max_attempts\":3}" |
+    jq
+done
+```
+
+Включённый polling обрабатывает новые исследования от момента включения до
+ближайших 08:00, после чего автоматически выключается. Состояние сохраняется в
+`agent_config.json`.
+
+## Диагностика очереди в PostgreSQL
+
+Просмотр последних команд:
+
+```bash
+docker compose exec -T postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  SELECT id, created_at, agent_id, command, status,
+         attempt_count, max_attempts, error_log
+  FROM user_requests
+  ORDER BY created_at DESC
+  LIMIT 50;"'
 ```
 
 Статистика:
 
 ```bash
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT status, count(*) FROM user_requests GROUP BY status ORDER BY status;"'
+docker compose exec -T postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  SELECT status, count(*)
+  FROM user_requests
+  GROUP BY status
+  ORDER BY status;"'
 ```
 
-## 7. Очистить выполненные и ошибочные команды
-
-Сначала убедитесь, что нужные результаты сохранены:
+Удаление только завершённых команд:
 
 ```bash
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM user_requests WHERE status IN ('\''completed'\'', '\''failed'\'');"'
+docker compose exec -T postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  DELETE FROM user_requests
+  WHERE status IN ('\''completed'\'', '\''error'\'');"'
 ```
 
-## 8. Полностью очистить все команды
-
-Включая `pending` и `in_process`:
+Полная очистка очереди, включая `pending` и `in_progress`:
 
 ```bash
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE TABLE user_requests;"'
+docker compose exec -T postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  TRUNCATE TABLE user_requests;"'
 ```
 
-Проверка:
-
-```bash
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) AS remaining_requests FROM user_requests;"'
-```
-
-Через `curl` очистить очередь сейчас нельзя: backend не предоставляет `DELETE /user_requests`. Очистка выполняется непосредственно в PostgreSQL.
+Последние две операции изменяют данные. Перед запуском убедитесь, что результаты
+больше не нужны. HTTP endpoint для удаления очереди отсутствует.

@@ -70,9 +70,10 @@ func TestCreateModalityStudyRequiresRemotePACSConfiguration(t *testing.T) {
 	body := bytes.NewBufferString(`{
 		"study_uid":"1.2.3",
 		"patient":"Иванов И.И.",
+		"study_date":"20260726",
 		"modality":"XA",
 		"dicom_link":"s3://bucket/1.2.3",
-		"dicom_files":[{"name":"1.dcm","url":"https://example/1"}]
+		"dicom_files":[{"name":"1.dcm","size":5,"url":"https://example/1"}]
 	}`)
 	request := httptest.NewRequest(http.MethodPost, "/xa_studies", body)
 	recorder := httptest.NewRecorder()
@@ -117,5 +118,25 @@ func TestReportsAreStoredAndReturned(t *testing.T) {
 		!bytes.Contains(listRecorder.Body.Bytes(), []byte(`"planned_count":3`)) ||
 		!bytes.Contains(listRecorder.Body.Bytes(), []byte(`"filename":`)) {
 		t.Fatalf("status = %d; body=%s", listRecorder.Code, listRecorder.Body)
+	}
+}
+
+func TestReportRejectsInvalidGeneratedAt(t *testing.T) {
+	handler := NewHttpServer(nil, nil, nil)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/reports",
+		bytes.NewBufferString(`{
+			"agent_id":2,
+			"generated_at":"not-a-date",
+			"report":{"planned_count":3}
+		}`),
+	)
+	recorder := httptest.NewRecorder()
+
+	handler.CreateReport(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
 	}
 }

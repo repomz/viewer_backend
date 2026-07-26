@@ -10,5 +10,8 @@ coverage*
 examples
 respons.json
 testing.md
+testing_*.md
+docker_install.md
 AUDIT_REPORT.md
 AGENT_INTEGRATION.md
+reports

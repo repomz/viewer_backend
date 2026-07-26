@@ -1,39 +1,66 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Переменные
-DB_NAME="angio_db"
-DB_USER="angio_user"
-DB_PASS="angio_password"
+set -Eeuo pipefail
 
-echo "Создание изолированной базы данных и пользователя..."
+DB_NAME="${DB_NAME:-angio_db}"
+DB_USER="${DB_USER:-angio_user}"
+: "${DB_PASS:?DB_PASS is required}"
 
-# 1. Создаем базу и пользователя через системного администратора
-sudo -u postgres psql <<EOF
--- Создаем базу
-CREATE DATABASE $DB_NAME;
+for identifier in "$DB_NAME" "$DB_USER"; do
+  if [[ ! "$identifier" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    printf 'Invalid PostgreSQL identifier: %s\n' "$identifier" >&2
+    exit 1
+  fi
+done
 
--- Создаем пользователя
-CREATE USER $DB_USER WITH ENCRYPTED PASSWORD '$DB_PASS';
+printf 'Creating or updating PostgreSQL role %s and database %s...\n' \
+  "$DB_USER" "$DB_NAME"
 
--- Глобальный запрет: отзываем у всех (PUBLIC) право подключаться к базе postgres
-REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;
+sudo -u postgres psql \
+  --set ON_ERROR_STOP=1 \
+  --set db_name="$DB_NAME" \
+  --set db_user="$DB_USER" \
+  --set db_pass="$DB_PASS" <<'SQL'
+SELECT format('CREATE ROLE %I LOGIN', :'db_user')
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_roles WHERE rolname = :'db_user'
+)
+\gexec
 
--- Разрешаем пользователю подключаться ТОЛЬКО к его базе
-GRANT CONNECT ON DATABASE $DB_NAME TO $DB_USER;
-EOF
+SELECT format('ALTER ROLE %I PASSWORD %L', :'db_user', :'db_pass')
+\gexec
 
-# 2. Настраиваем права внутри самой базы
-sudo -u postgres psql -d $DB_NAME <<EOF
--- Отзываем права у посторонних лиц на схему public в этой базе
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
+SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_database WHERE datname = :'db_name'
+)
+\gexec
 
--- Даем полные права на схему public нашему пользователю
-GRANT ALL ON SCHEMA public TO $DB_USER;
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user')
+\gexec
+SQL
 
--- Устанавливаем права по умолчанию: 
--- все, что будет создано в этой базе, будет доступно нашему пользователю
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $DB_USER;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $DB_USER;
-EOF
+sudo -u postgres psql \
+  --set ON_ERROR_STOP=1 \
+  --dbname "$DB_NAME" \
+  --set db_user="$DB_USER" <<'SQL'
+SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), :'db_user')
+\gexec
 
-echo "Готово! Настройка базы данных '$DB_NAME' завершена успешно! Создан пользователь '$DB_USER', имеет доступ к базе '$DB_NAME'."
+SELECT format('GRANT ALL ON SCHEMA public TO %I', :'db_user')
+\gexec
+
+SELECT format(
+  'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO %I',
+  :'db_user'
+)
+\gexec
+
+SELECT format(
+  'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO %I',
+  :'db_user'
+)
+\gexec
+SQL
+
+printf 'PostgreSQL database %s is ready for role %s.\n' "$DB_NAME" "$DB_USER"
