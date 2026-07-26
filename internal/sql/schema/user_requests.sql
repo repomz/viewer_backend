@@ -6,7 +6,7 @@ CREATE TABLE user_requests (
     lease_expires_at TIMESTAMPTZ,
     completed_at     TIMESTAMPTZ,
     status           TEXT NOT NULL DEFAULT 'pending'
-                     CHECK (status IN ('pending', 'in_process', 'completed', 'failed')),
+                     CHECK (status IN ('pending', 'in_progress', 'completed', 'error')),
     user_id          TEXT NOT NULL,
     agent_id         INTEGER NOT NULL CHECK (agent_id > 0),
     request_type     TEXT NOT NULL DEFAULT 'execute_command',

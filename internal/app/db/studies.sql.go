@@ -512,6 +512,41 @@ func (q *Queries) GetStudyByPatient(ctx context.Context, patient string) (Study,
 	return i, err
 }
 
+const getStudyByStudyIDAndType = `-- name: GetStudyByStudyIDAndType :one
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+WHERE study_id = $1 AND study_type = $2 AND deleted = false
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetStudyByStudyIDAndTypeParams struct {
+	StudyID   string `json:"study_id"`
+	StudyType string `json:"study_type"`
+}
+
+func (q *Queries) GetStudyByStudyIDAndType(ctx context.Context, arg GetStudyByStudyIDAndTypeParams) (Study, error) {
+	row := q.queryRow(ctx, q.getStudyByStudyIDAndTypeStmt, getStudyByStudyIDAndType, arg.StudyID, arg.StudyType)
+	var i Study
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StudyID,
+		&i.Patient,
+		&i.Age,
+		&i.Department,
+		&i.NameOperation,
+		&i.StudyType,
+		&i.DescrOperation,
+		&i.TimeBeginning,
+		&i.TimeDuration,
+		&i.Surgeon,
+		&i.DicomLink,
+		&i.Deleted,
+	)
+	return i, err
+}
+
 const softDeleteAllStudies = `-- name: SoftDeleteAllStudies :exec
 UPDATE studies SET deleted = true, updated_at = NOW()
 WHERE deleted = false

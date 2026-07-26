@@ -23,6 +23,14 @@ func (s StudyService) GetStudyByID(ctx context.Context, id uuid.UUID) (domain.St
 	return s.repo.GetStudyByID(ctx, id)
 }
 
+func (s StudyService) GetStudyByStudyIDAndType(
+	ctx context.Context,
+	studyID string,
+	studyType string,
+) (domain.Study, error) {
+	return s.repo.GetStudyByStudyIDAndType(ctx, studyID, studyType)
+}
+
 func (s StudyService) GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error) {
 	return s.repo.GetStudyByPatient(ctx, patient)
 }

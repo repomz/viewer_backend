@@ -1,6 +1,6 @@
 # Интеграция viewer_backend и hospital_agent
 
-Дата: 19 июля 2026 года.
+Дата актуализации: 26 июля 2026 года.
 
 Проекты:
 
@@ -13,24 +13,28 @@ Backend хранит очередь команд. Агент с конкретн
 
 Поддержанные команды:
 
-- `send_study_to_yandex`;
-- `send_dicom_to_mapdr`;
-- `generate_operations_report`.
+- `get_report`;
+- `find_study`, `find_xa`, `find_ct`;
+- `get_xa`, `get_ct`;
+- `xa_polling_on`, `xa_polling_off`;
+- `ct_polling_on`, `ct_polling_off`.
 
 Произвольная shell-команда не поддерживается и не должна добавляться в этот протокол.
+Имя команды определяется только по полю `command`; поля `action` и `type`
+не являются альтернативами.
 
 ## Жизненный цикл
 
 1. Viewer/admin создаёт `POST /user_requests`.
 2. Запрос сохраняется как `pending`.
 3. Агент вызывает `GET /user_requests?agent_id=2`.
-4. PostgreSQL атомарно выбирает одно задание через `FOR UPDATE SKIP LOCKED`, переводит его в `in_process`, увеличивает `attempt_count` и выдаёт lease на 5 минут.
+4. PostgreSQL атомарно выбирает одно задание через `FOR UPDATE SKIP LOCKED`, переводит его в `in_progress`, увеличивает `attempt_count` и выдаёт lease на 5 минут.
 5. Backend добавляет `response_endpoint` в ответ.
 6. Агент выполняет команду.
 7. Агент отправляет результат в `POST /user_requests/{id}/result`.
 8. Успех переводит запрос в `completed`.
 9. Ошибка с `retryable=true` возвращает запрос в `pending` на 30 секунд, пока не исчерпан `max_attempts`.
-10. Невосстановимая ошибка или исчерпание попыток переводит запрос в `failed`.
+10. Невосстановимая ошибка или исчерпание попыток переводит запрос в `error`.
 
 Если агент завершил команду, но не получил подтверждение callback, он сохраняет terminal result в локальном `state_file`. При повторной выдаче задания агент сначала повторяет callback и не выполняет команду второй раз.
 
@@ -47,8 +51,7 @@ Content-Type: application/json
 {
   "user_id": "operator-42",
   "agent_id": 2,
-  "request_type": "execute_command",
-  "command": "send_study_to_yandex",
+  "command": "get_ct",
   "payload": {
     "study_uid": "1.2.840.113619.2.55.3.604688435.123"
   },
@@ -56,7 +59,9 @@ Content-Type: application/json
 }
 ```
 
-Backend отклоняет неизвестную команду. Для `send_study_to_yandex` обязателен `payload.study_uid`, для `send_dicom_to_mapdr` — `payload.dicom_path`.
+Backend отклоняет неизвестную команду. Для `get_xa`/`get_ct` обязателен
+`payload.study_uid`; для команд поиска — `payload.patient`. `get_report` принимает
+только `payload.period` от 1 до 4.
 
 ## Получение команды агентом
 
@@ -72,8 +77,7 @@ Accept: application/json
   "id": "11111111-1111-1111-1111-111111111111",
   "request_id": "11111111-1111-1111-1111-111111111111",
   "agent_id": 2,
-  "request_type": "execute_command",
-  "command": "send_study_to_yandex",
+  "command": "get_ct",
   "study_uid": "1.2.840.113619.2.55.3.604688435.123",
   "attempt_count": 1,
   "max_attempts": 3,
@@ -99,7 +103,7 @@ Content-Type: application/json
     "uploaded_files": 120,
     "uploaded_bytes": 987654321
   },
-  "error": null
+  "errors": null
 }
 ```
 
@@ -111,7 +115,7 @@ Content-Type: application/json
   "ok": false,
   "retryable": true,
   "result": {},
-  "error": "PACS is temporarily unavailable"
+  "errors": "PACS is temporarily unavailable"
 }
 ```
 
@@ -123,7 +127,7 @@ Content-Type: application/json
   "ok": false,
   "retryable": false,
   "result": {},
-  "error": "study_uid is required"
+  "errors": "study_uid is required"
 }
 ```
 
@@ -133,11 +137,12 @@ Content-Type: application/json
 GET /user_requests/11111111-1111-1111-1111-111111111111
 ```
 
-Ответ содержит `status`, `attempt_count`, `max_attempts`, `result`, `error`, временные метки и lease.
+Ответ содержит `status`, `attempt_count`, `max_attempts`, `result`, `errors`,
+временные метки и lease.
 
 ## Протоколы операций
 
-Агент также отправляет разобранные DOCX-протоколы в `/study` или `/studies`. Payload синхронизирован с backend:
+Агент отправляет разобранные DOCX-протоколы только в `/studies`. Payload синхронизирован с backend:
 
 - удалены клиентские `id`, `created_at`, `updated_at`;
 - используется корректное поле `time_beginning`;
@@ -158,7 +163,7 @@ GET /user_requests/11111111-1111-1111-1111-111111111111
 2. Убедиться, что `agent_config.json` содержит числовой `agent_id`, совпадающий с адресатом команд.
 3. Запустить backend.
 4. Выполнить read-only проверку `GET /user_requests?agent_id=2`.
-5. Создать безопасную тестовую команду и проверить переходы `pending → in_process → completed`.
+5. Создать безопасную тестовую команду и проверить переходы `pending → in_progress → completed`.
 
 ## Обязательные меры безопасности
 
@@ -167,22 +172,15 @@ GET /user_requests/11111111-1111-1111-1111-111111111111
 - ввести отдельный credential каждого агента;
 - защитить постановку команд ролью admin/operator;
 - использовать HTTPS/mTLS либо защищённый VPN;
-- ограничить локальные пути, допустимые для `send_dicom_to_mapdr`;
-- запретить переопределение MAPDR host/credentials из команды;
+- не принимать локальные пути и адрес remote PACS из пользовательской команды;
+- задавать remote PACS и его credential только окружением backend;
 - вести аудит постановки и выполнения команд без записи медицинских данных в обычные логи.
 
 Без этих мер endpoint постановки команд нельзя публиковать в интернет или общую больничную сеть.
 
 ## Выполненная проверка
 
-В изолированном PostgreSQL-кластере успешно проверено:
-
-- применение всех миграций;
-- создание команды;
-- выдача команды только `agent_id=2`;
-- перенос полей `payload` в контракт агента;
-- запись успешного JSON result;
-- идемпотентная повторная отправка result;
-- отсутствие завершённой команды в следующем polling.
-
-Также проходят Go race-тесты backend, Python unit-тесты агента и преобразование всех 14 тестовых DOCX в актуальный `StudyRequest`.
+Автоматическими тестами проверены контракты новых команд, статусы и поле `errors`,
+строгий импорт всех DICOM в remote PACS до сохранения записи, отказ без настройки
+remote PACS и хранение/чтение JSON-отчётов. Реальные PACS и Yandex требуют отдельной
+интеграционной проверки в больничной сети.

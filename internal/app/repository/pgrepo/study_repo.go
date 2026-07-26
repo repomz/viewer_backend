@@ -150,6 +150,28 @@ func (s StudyRepo) GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study
 	return domainStudy, nil
 }
 
+func (s StudyRepo) GetStudyByStudyIDAndType(
+	ctx context.Context,
+	studyID string,
+	studyType string,
+) (domain.Study, error) {
+	study, err := s.query.GetStudyByStudyIDAndType(
+		ctx,
+		db.GetStudyByStudyIDAndTypeParams{StudyID: studyID, StudyType: studyType},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Study{}, domain.ErrNotFound
+		}
+		return domain.Study{}, fmt.Errorf("get study by external ID and type: %w", err)
+	}
+	domainStudy, err := dbStudyToDomain(study)
+	if err != nil {
+		return domain.Study{}, fmt.Errorf("create domain study: %w", err)
+	}
+	return domainStudy, nil
+}
+
 func (s StudyRepo) GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error) {
 
 	if patient.Patient == "" {

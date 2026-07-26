@@ -46,11 +46,11 @@ func queuedUserRequest() domain.UserRequest {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		AvailableAt:  time.Now(),
-		Status:       domain.UserRequestInProcess,
+		Status:       domain.UserRequestInProgress,
 		UserID:       "operator-1",
 		AgentID:      2,
 		RequestType:  "execute_command",
-		Command:      "send_study_to_yandex",
+		Command:      "get_xa",
 		Payload:      json.RawMessage(`{"study_uid":"1.2.3"}`),
 		Result:       json.RawMessage(`{}`),
 		AttemptCount: 1,
@@ -64,7 +64,7 @@ func TestCreateUserRequest(t *testing.T) {
 	body := bytes.NewBufferString(`{
 		"user_id":"operator-1",
 		"agent_id":2,
-		"command":"send_study_to_yandex",
+		"command":"get_xa",
 		"payload":{"study_uid":"1.2.3"}
 	}`)
 	request := httptest.NewRequest(http.MethodPost, "/user_requests", body)
@@ -75,7 +75,7 @@ func TestCreateUserRequest(t *testing.T) {
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body)
 	}
-	if service.created.AgentID != 2 || service.created.Command != "send_study_to_yandex" {
+	if service.created.AgentID != 2 || service.created.Command != "get_xa" {
 		t.Fatalf("created request = %#v", service.created)
 	}
 }
@@ -97,6 +97,11 @@ func TestClaimUserRequestBuildsAgentContract(t *testing.T) {
 	}
 	if response["study_uid"] != "1.2.3" {
 		t.Fatalf("study_uid = %#v", response["study_uid"])
+	}
+	for _, alias := range []string{"action", "type", "request_type"} {
+		if _, exists := response[alias]; exists {
+			t.Fatalf("agent response unexpectedly contains %q", alias)
+		}
 	}
 	if response["response_endpoint"] != "/user_requests/11111111-1111-1111-1111-111111111111/result" {
 		t.Fatalf("response_endpoint = %#v", response["response_endpoint"])

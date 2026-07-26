@@ -102,6 +102,11 @@ func run() error {
 	router.HandleFunc("/studies/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
 	router.HandleFunc("/studies/{study_id}/dicom-link", httpServer.UpdateStudy).Methods(http.MethodPatch)
 	router.HandleFunc("/studies/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
+	router.HandleFunc("/ct_studies", httpServer.CreateCTStudy).Methods(http.MethodPost)
+	router.HandleFunc("/xa_studies", httpServer.CreateXAStudy).Methods(http.MethodPost)
+	router.HandleFunc("/reports", httpServer.CreateReport).Methods(http.MethodPost)
+	router.HandleFunc("/reports", httpServer.GetReports).Methods(http.MethodGet)
+	router.HandleFunc("/reports/{filename}", httpServer.GetReport).Methods(http.MethodGet)
 
 	// Backward-compatible singular routes.
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
@@ -125,7 +130,7 @@ func run() error {
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      30 * time.Minute,
 		IdleTimeout:       60 * time.Second,
 	}
 

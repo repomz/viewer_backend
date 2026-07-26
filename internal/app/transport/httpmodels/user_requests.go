@@ -11,9 +11,16 @@ import (
 )
 
 var allowedAgentCommands = map[string]bool{
-	"send_study_to_yandex":       true,
-	"send_dicom_to_mapdr":        true,
-	"generate_operations_report": true,
+	"get_report":     true,
+	"find_study":     true,
+	"find_xa":        true,
+	"find_ct":        true,
+	"get_xa":         true,
+	"get_ct":         true,
+	"xa_polling_on":  true,
+	"xa_polling_off": true,
+	"ct_polling_on":  true,
+	"ct_polling_off": true,
 }
 
 type UserRequestCreateRequest struct {
@@ -45,13 +52,24 @@ func (r *UserRequestCreateRequest) Validate() error {
 		r.Payload = map[string]any{}
 	}
 	switch r.Command {
-	case "send_study_to_yandex":
+	case "get_xa", "get_ct":
 		if strings.TrimSpace(stringValue(r.Payload["study_uid"])) == "" {
 			return fmt.Errorf("%w: payload.study_uid", domain.ErrRequired)
 		}
-	case "send_dicom_to_mapdr":
-		if strings.TrimSpace(stringValue(r.Payload["dicom_path"])) == "" {
-			return fmt.Errorf("%w: payload.dicom_path", domain.ErrRequired)
+	case "find_xa", "find_ct", "find_study":
+		if strings.TrimSpace(stringValue(r.Payload["patient"])) == "" &&
+			strings.TrimSpace(stringValue(r.Payload["patient_name"])) == "" {
+			return fmt.Errorf("%w: payload.patient", domain.ErrRequired)
+		}
+	case "get_report":
+		if value, exists := r.Payload["period"]; exists {
+			period, valid := integerValue(value)
+			if !valid || period < 1 || period > 4 {
+				return fmt.Errorf(
+					"%w: payload.period must be an integer between 1 and 4",
+					domain.ErrInvalidRequest,
+				)
+			}
 		}
 	}
 	if r.MaxAttempts == 0 {
@@ -68,11 +86,11 @@ type UserRequestResultRequest struct {
 	OK        bool           `json:"ok"`
 	Retryable bool           `json:"retryable"`
 	Result    map[string]any `json:"result"`
-	Error     string         `json:"error"`
+	Errors    string         `json:"errors"`
 }
 
 func (r *UserRequestResultRequest) Validate() error {
-	r.Error = strings.TrimSpace(r.Error)
+	r.Errors = strings.TrimSpace(r.Errors)
 	if r.AgentID <= 0 {
 		return fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
 	}
@@ -83,8 +101,8 @@ func (r *UserRequestResultRequest) Validate() error {
 		}
 		return nil
 	}
-	if r.Error == "" {
-		return fmt.Errorf("%w: error", domain.ErrRequired)
+	if r.Errors == "" {
+		return fmt.Errorf("%w: errors", domain.ErrRequired)
 	}
 	return nil
 }
@@ -103,7 +121,7 @@ type UserRequestResponse struct {
 	Command        string          `json:"command"`
 	Payload        json.RawMessage `json:"payload"`
 	Result         json.RawMessage `json:"result"`
-	Error          string          `json:"error,omitempty"`
+	Errors         string          `json:"errors,omitempty"`
 	AttemptCount   int32           `json:"attempt_count"`
 	MaxAttempts    int32           `json:"max_attempts"`
 }
@@ -113,4 +131,23 @@ func stringValue(value any) string {
 		return ""
 	}
 	return fmt.Sprint(value)
+}
+
+func integerValue(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		converted := int64(typed)
+		return converted, float64(converted) == typed
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case json.Number:
+		converted, err := typed.Int64()
+		return converted, err == nil
+	default:
+		return 0, false
+	}
 }

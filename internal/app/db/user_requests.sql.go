@@ -21,14 +21,14 @@ WITH next_request AS (
       AND user_requests.attempt_count < user_requests.max_attempts
       AND (
           (status = 'pending' AND available_at <= NOW())
-          OR (status = 'in_process' AND lease_expires_at <= NOW())
+          OR (status = 'in_progress' AND lease_expires_at <= NOW())
       )
     ORDER BY available_at ASC, created_at ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
 UPDATE user_requests AS request
-SET status = 'in_process',
+SET status = 'in_progress',
     attempt_count = request.attempt_count + 1,
     updated_at = NOW(),
     lease_expires_at = NOW() + INTERVAL '5 minutes'
@@ -71,7 +71,7 @@ SET status = 'completed',
     lease_expires_at = NULL
 WHERE id = $1
   AND agent_id = $2
-  AND status = 'in_process'
+  AND status = 'in_progress'
 RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 `
 
@@ -160,7 +160,7 @@ func (q *Queries) CreateUserRequest(ctx context.Context, arg CreateUserRequestPa
 
 const deleteOldRequests = `-- name: DeleteOldRequests :exec
 DELETE FROM user_requests
-WHERE status IN ('completed', 'failed')
+WHERE status IN ('completed', 'error')
   AND completed_at < NOW() - INTERVAL '3 days'
 `
 
@@ -171,14 +171,14 @@ func (q *Queries) DeleteOldRequests(ctx context.Context) error {
 
 const failUserRequest = `-- name: FailUserRequest :one
 UPDATE user_requests
-SET status = 'failed',
+SET status = 'error',
     error_log = $3,
     updated_at = NOW(),
     completed_at = NOW(),
     lease_expires_at = NULL
 WHERE id = $1
   AND agent_id = $2
-  AND status = 'in_process'
+  AND status = 'in_progress'
 RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 `
 
@@ -215,7 +215,7 @@ func (q *Queries) FailUserRequest(ctx context.Context, arg FailUserRequestParams
 const getOldRequestsForArchive = `-- name: GetOldRequestsForArchive :many
 SELECT id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 FROM user_requests
-WHERE status IN ('completed', 'failed')
+WHERE status IN ('completed', 'error')
   AND completed_at < NOW() - INTERVAL '3 days'
 ORDER BY completed_at ASC
 `
@@ -294,7 +294,7 @@ const retryUserRequest = `-- name: RetryUserRequest :one
 UPDATE user_requests
 SET status = CASE
         WHEN attempt_count < max_attempts THEN 'pending'
-        ELSE 'failed'
+        ELSE 'error'
     END,
     error_log = $3,
     updated_at = NOW(),
@@ -306,7 +306,7 @@ SET status = CASE
     END
 WHERE id = $1
   AND agent_id = $2
-  AND status = 'in_process'
+  AND status = 'in_progress'
 RETURNING id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
 `
 

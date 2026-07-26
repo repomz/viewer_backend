@@ -35,6 +35,7 @@ type Querier interface {
 	GetStudiesBySurgeonAndStudyType(ctx context.Context, arg GetStudiesBySurgeonAndStudyTypeParams) ([]Study, error)
 	GetStudyByID(ctx context.Context, id uuid.UUID) (Study, error)
 	GetStudyByPatient(ctx context.Context, patient string) (Study, error)
+	GetStudyByStudyIDAndType(ctx context.Context, arg GetStudyByStudyIDAndTypeParams) (Study, error)
 	GetUserRequestByID(ctx context.Context, id uuid.UUID) (UserRequest, error)
 	RetryUserRequest(ctx context.Context, arg RetryUserRequestParams) (UserRequest, error)
 	SoftDeleteAllStudies(ctx context.Context) error

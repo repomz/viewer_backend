@@ -15,6 +15,10 @@ func InternalError(slug string, err error, w http.ResponseWriter, r *http.Reques
 	httpRespondWithError(err, slug, w, r, "Internal server error", http.StatusInternalServerError)
 }
 
+func BadGateway(slug string, err error, w http.ResponseWriter, r *http.Request) {
+	httpRespondWithError(err, slug, w, r, "Bad Gateway", http.StatusBadGateway)
+}
+
 func Unauthorised(slug string, err error, w http.ResponseWriter, r *http.Request) {
 	httpRespondWithError(err, slug, w, r, "Unauthorised", http.StatusUnauthorized)
 }

@@ -12,6 +12,7 @@ type StudyRepository interface {
 	GetAllStudies(ctx context.Context, limit, offset int) ([]domain.Study, error)
 	GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error)
 	GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study, error)
+	GetStudyByStudyIDAndType(ctx context.Context, studyID, studyType string) (domain.Study, error)
 	GetStudyByPatient(ctx context.Context, patient domain.PatientFilter) (domain.Study, error)
 	CreateStudy(ctx context.Context, study domain.Study) (domain.Study, error)
 	UpdateStudyDicomLink(ctx context.Context, study domain.Study) (domain.Study, error)

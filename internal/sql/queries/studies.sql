@@ -13,6 +13,12 @@ LIMIT $1 OFFSET $2;
 SELECT * FROM studies
 WHERE id = $1 AND deleted = false;
 
+-- name: GetStudyByStudyIDAndType :one
+SELECT * FROM studies
+WHERE study_id = $1 AND study_type = $2 AND deleted = false
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: GetStudyByPatient :one
 SELECT * FROM studies
 WHERE patient = $1 AND deleted = false

@@ -30,6 +30,14 @@ func (s *studyServiceStub) GetStudyByID(context.Context, uuid.UUID) (domain.Stud
 	return domain.Study{}, nil
 }
 
+func (s *studyServiceStub) GetStudyByStudyIDAndType(
+	context.Context,
+	string,
+	string,
+) (domain.Study, error) {
+	return domain.Study{}, domain.ErrNotFound
+}
+
 func (s *studyServiceStub) GetStudyByPatient(context.Context, domain.PatientFilter) (domain.Study, error) {
 	return domain.Study{}, nil
 }

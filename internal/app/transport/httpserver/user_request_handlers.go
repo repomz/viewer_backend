@@ -88,7 +88,7 @@ func (h HttpServer) RecordUserRequestResult(w http.ResponseWriter, r *http.Reque
 		OK:        request.OK,
 		Retryable: request.Retryable,
 		Result:    result,
-		Error:     request.Error,
+		Error:     request.Errors,
 	})
 	if err != nil {
 		server.RespondWithError(err, w, r)
@@ -126,7 +126,7 @@ func toUserRequestResponse(request domain.UserRequest) httpmodels.UserRequestRes
 		Command:        request.Command,
 		Payload:        request.Payload,
 		Result:         request.Result,
-		Error:          request.ErrorLog,
+		Errors:         request.ErrorLog,
 		AttemptCount:   request.AttemptCount,
 		MaxAttempts:    request.MaxAttempts,
 	}
@@ -145,7 +145,6 @@ func toAgentCommandResponse(request domain.UserRequest) map[string]any {
 	response["request_id"] = request.ID.String()
 	response["agent_id"] = request.AgentID
 	response["command"] = request.Command
-	response["request_type"] = request.RequestType
 	response["attempt_count"] = request.AttemptCount
 	response["max_attempts"] = request.MaxAttempts
 	response["response_endpoint"] = strings.ReplaceAll(

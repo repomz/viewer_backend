@@ -91,9 +91,9 @@ func (r UserRequestRepo) RecordResult(ctx context.Context, result domain.UserReq
 				return domain.UserRequest{}, domain.ErrNotFound
 			}
 			resultWasRecorded := (result.OK && existing.Status == domain.UserRequestCompleted) ||
-				(!result.OK && !result.Retryable && existing.Status == domain.UserRequestFailed) ||
+				(!result.OK && !result.Retryable && existing.Status == domain.UserRequestError) ||
 				(!result.OK && result.Retryable &&
-					(existing.Status == domain.UserRequestPending || existing.Status == domain.UserRequestFailed))
+					(existing.Status == domain.UserRequestPending || existing.Status == domain.UserRequestError))
 			if resultWasRecorded {
 				return dbUserRequestToDomain(existing), nil
 			}

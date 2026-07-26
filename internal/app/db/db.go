@@ -90,6 +90,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getStudyByPatientStmt, err = db.PrepareContext(ctx, getStudyByPatient); err != nil {
 		return nil, fmt.Errorf("error preparing query GetStudyByPatient: %w", err)
 	}
+	if q.getStudyByStudyIDAndTypeStmt, err = db.PrepareContext(ctx, getStudyByStudyIDAndType); err != nil {
+		return nil, fmt.Errorf("error preparing query GetStudyByStudyIDAndType: %w", err)
+	}
 	if q.getUserRequestByIDStmt, err = db.PrepareContext(ctx, getUserRequestByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserRequestByID: %w", err)
 	}
@@ -220,6 +223,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getStudyByPatientStmt: %w", cerr)
 		}
 	}
+	if q.getStudyByStudyIDAndTypeStmt != nil {
+		if cerr := q.getStudyByStudyIDAndTypeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getStudyByStudyIDAndTypeStmt: %w", cerr)
+		}
+	}
 	if q.getUserRequestByIDStmt != nil {
 		if cerr := q.getUserRequestByIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserRequestByIDStmt: %w", cerr)
@@ -306,6 +314,7 @@ type Queries struct {
 	getStudiesBySurgeonAndStudyTypeStmt   *sql.Stmt
 	getStudyByIDStmt                      *sql.Stmt
 	getStudyByPatientStmt                 *sql.Stmt
+	getStudyByStudyIDAndTypeStmt          *sql.Stmt
 	getUserRequestByIDStmt                *sql.Stmt
 	retryUserRequestStmt                  *sql.Stmt
 	softDeleteAllStudiesStmt              *sql.Stmt
@@ -339,6 +348,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getStudiesBySurgeonAndStudyTypeStmt:   q.getStudiesBySurgeonAndStudyTypeStmt,
 		getStudyByIDStmt:                      q.getStudyByIDStmt,
 		getStudyByPatientStmt:                 q.getStudyByPatientStmt,
+		getStudyByStudyIDAndTypeStmt:          q.getStudyByStudyIDAndTypeStmt,
 		getUserRequestByIDStmt:                q.getUserRequestByIDStmt,
 		retryUserRequestStmt:                  q.retryUserRequestStmt,
 		softDeleteAllStudiesStmt:              q.softDeleteAllStudiesStmt,

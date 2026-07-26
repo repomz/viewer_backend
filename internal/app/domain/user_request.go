@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	UserRequestPending   = "pending"
-	UserRequestInProcess = "in_process"
-	UserRequestCompleted = "completed"
-	UserRequestFailed    = "failed"
+	UserRequestPending    = "pending"
+	UserRequestInProgress = "in_progress"
+	UserRequestCompleted  = "completed"
+	UserRequestError      = "error"
 )
 
 type UserRequest struct {
