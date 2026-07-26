@@ -25,15 +25,21 @@ func validStudyRequest() StudyRequest {
 
 func TestStudyRequestValidateAndNormalize(t *testing.T) {
 	request := validStudyRequest()
+	request.StudyType = " ЭМБОЛИЗАЦИЯ МАТОЧНЫХ АРТЕРИЙ "
+	request.Surgeon = " ПЕТРОВ "
 
 	if err := request.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
-	if request.StudyType != "каг" {
-		t.Fatalf("StudyType = %q, want %q", request.StudyType, "каг")
+	if request.StudyType != "эмболизация маточных артерий" {
+		t.Fatalf(
+			"StudyType = %q, want %q",
+			request.StudyType,
+			"эмболизация маточных артерий",
+		)
 	}
-	if request.Surgeon != "идрисов" {
-		t.Fatalf("Surgeon = %q, want %q", request.Surgeon, "идрисов")
+	if request.Surgeon != "петров" {
+		t.Fatalf("Surgeon = %q, want %q", request.Surgeon, "петров")
 	}
 }
 
@@ -45,8 +51,9 @@ func TestStudyRequestRejectsMissingAndInvalidValues(t *testing.T) {
 	}{
 		{"missing study id", func(r *StudyRequest) { r.StudyID = "" }, domain.ErrRequired},
 		{"negative age", func(r *StudyRequest) { r.Age = -1 }, domain.ErrNegative},
-		{"invalid study type", func(r *StudyRequest) { r.StudyType = "unknown" }, domain.ErrInvalidStudyType},
+		{"missing study type", func(r *StudyRequest) { r.StudyType = "" }, domain.ErrRequired},
 		{"negative duration", func(r *StudyRequest) { r.TimeDuration = -1 }, domain.ErrNegative},
+		{"missing surgeon", func(r *StudyRequest) { r.Surgeon = "" }, domain.ErrRequired},
 	}
 
 	for _, tt := range tests {
@@ -57,6 +64,21 @@ func TestStudyRequestRejectsMissingAndInvalidValues(t *testing.T) {
 				t.Fatalf("Validate() error = %v, want errors.Is(%v)", err, tt.target)
 			}
 		})
+	}
+}
+
+func TestStudyFilterAllowsArbitrarySurgeonAndStudyType(t *testing.T) {
+	filter := StudyFilter{
+		Surgeon:   " ПЕТРОВ ",
+		StudyType: " ЭМБОЛИЗАЦИЯ ",
+	}
+
+	if err := filter.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	filter.Normalize()
+	if filter.Surgeon != "петров" || filter.StudyType != "эмболизация" {
+		t.Fatalf("Normalize() = surgeon %q, type %q", filter.Surgeon, filter.StudyType)
 	}
 }
 

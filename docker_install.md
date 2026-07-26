@@ -39,6 +39,7 @@ Windows-компьютере через `pythonw` и подключается к
 ```bash
 scp scripts/prepare_ubuntu_server.sh USER@SERVER_IP:/tmp/
 ```
+scp scripts/prepare_ubuntu_server.sh root@135.106.130.37:/tmp/
 
 Запустите на сервере:
 

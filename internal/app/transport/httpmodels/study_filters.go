@@ -13,35 +13,6 @@ type PatientFilter struct {
 	Patient string
 }
 
-// Список разрешенных фамилий хирургов в нижнем регистре
-var allowedSurgeons = map[string]bool{
-	"идрисов":  true,
-	"шпилевой": true,
-	"старков":  true,
-	"киргизов": true,
-}
-
-func IsAllowedSurgeon(surgeon string) bool {
-	return allowedSurgeons[strings.ToLower(strings.TrimSpace(surgeon))]
-}
-
-// Список разрешенных типов исследований в нижнем регистре
-var allowedStudyTypes = map[string]bool{
-	"каг":             true,
-	"цаг":             true,
-	"стент_кор":       true,
-	"стент_вса":       true,
-	"стент_периферии": true,
-	"бап_кор":         true,
-	"бап_вса":         true,
-	"бап_периферии":   true,
-	"тромбаспирация":  true,
-}
-
-func IsAllowedStudyType(studyType string) bool {
-	return allowedStudyTypes[strings.ToLower(strings.TrimSpace(studyType))]
-}
-
 // Validate проверяет имя пациента отдельно от других структур
 func (f *PatientFilter) Validate() error {
 	f.Patient = strings.TrimSpace(f.Patient)
@@ -81,20 +52,6 @@ type StudyFilter struct {
 
 // Validate проверяет только параметры исследования
 func (f *StudyFilter) Validate() error {
-	if f.Surgeon != "" {
-		surgeon := strings.ToLower(strings.TrimSpace(string(f.Surgeon)))
-		if !IsAllowedSurgeon(surgeon) {
-			return domain.ErrInvalidSurgeon
-		}
-	}
-
-	if f.StudyType != "" {
-		studyType := strings.ToLower(strings.TrimSpace(string(f.StudyType)))
-		if !IsAllowedStudyType(studyType) {
-			return domain.ErrInvalidStudyType
-		}
-	}
-
 	if f.StudyDate != nil && f.StudyDate.After(time.Now()) {
 		return fmt.Errorf("study_date cannot be in the future")
 	}

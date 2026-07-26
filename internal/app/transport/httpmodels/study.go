@@ -48,8 +48,8 @@ func (s *StudyRequest) Validate() error {
 	if s.NameOperation == "" {
 		return fmt.Errorf("%w: name_operation", domain.ErrRequired)
 	}
-	if !IsAllowedStudyType(s.StudyType) {
-		return fmt.Errorf("%w: study_type", domain.ErrInvalidStudyType)
+	if s.StudyType == "" {
+		return fmt.Errorf("%w: study_type", domain.ErrRequired)
 	}
 	if s.DescrOperation == "" {
 		return fmt.Errorf("%w: descr_operation", domain.ErrRequired)
@@ -57,8 +57,8 @@ func (s *StudyRequest) Validate() error {
 	if s.TimeDuration < 0 {
 		return fmt.Errorf("%w: time_duration", domain.ErrNegative)
 	}
-	if !IsAllowedSurgeon(s.Surgeon) {
-		return fmt.Errorf("%w: surgeon", domain.ErrInvalidSurgeon)
+	if s.Surgeon == "" {
+		return fmt.Errorf("%w: surgeon", domain.ErrRequired)
 	}
 	return nil
 }
