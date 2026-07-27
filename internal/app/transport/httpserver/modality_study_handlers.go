@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -114,42 +115,94 @@ func importRemotePACS(ctx context.Context, files []httpmodels.DicomFile) error {
 	username := os.Getenv("REMOTE_PACS_USERNAME")
 	password := os.Getenv("REMOTE_PACS_PASSWORD")
 	for _, file := range files {
-		downloadRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, file.URL, nil)
-		if err != nil {
-			return fmt.Errorf("build DICOM download request: %w", err)
-		}
-		downloadResponse, err := client.Do(downloadRequest)
-		if err != nil {
-			return fmt.Errorf("download DICOM %s: %w", file.Name, err)
-		}
-		if downloadResponse.StatusCode < 200 || downloadResponse.StatusCode >= 300 {
-			_ = downloadResponse.Body.Close()
-			return fmt.Errorf("download DICOM %s: HTTP %d", file.Name, downloadResponse.StatusCode)
-		}
-
-		uploadRequest, err := http.NewRequestWithContext(
+		if err := importRemotePACSFile(
 			ctx,
-			http.MethodPost,
+			client,
 			remoteURL,
-			downloadResponse.Body,
-		)
-		if err != nil {
-			_ = downloadResponse.Body.Close()
-			return fmt.Errorf("build remote PACS request: %w", err)
+			username,
+			password,
+			file,
+		); err != nil {
+			return err
 		}
-		uploadRequest.Header.Set("Content-Type", "application/dicom")
-		if username != "" || password != "" {
-			uploadRequest.SetBasicAuth(username, password)
-		}
-		uploadResponse, err := client.Do(uploadRequest)
+	}
+	return nil
+}
+
+func importRemotePACSFile(
+	ctx context.Context,
+	client *http.Client,
+	remoteURL string,
+	username string,
+	password string,
+	file httpmodels.DicomFile,
+) error {
+	downloadRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, file.URL, nil)
+	if err != nil {
+		return fmt.Errorf("build DICOM download request: %w", err)
+	}
+	downloadResponse, err := client.Do(downloadRequest)
+	if err != nil {
+		return fmt.Errorf("download DICOM %s: %w", file.Name, err)
+	}
+	if downloadResponse.StatusCode < 200 || downloadResponse.StatusCode >= 300 {
 		_ = downloadResponse.Body.Close()
-		if err != nil {
-			return fmt.Errorf("upload DICOM %s: %w", file.Name, err)
-		}
-		_ = uploadResponse.Body.Close()
-		if uploadResponse.StatusCode < 200 || uploadResponse.StatusCode >= 300 {
-			return fmt.Errorf("upload DICOM %s: HTTP %d", file.Name, uploadResponse.StatusCode)
-		}
+		return fmt.Errorf("download DICOM %s: HTTP %d", file.Name, downloadResponse.StatusCode)
+	}
+
+	temporaryFile, err := os.CreateTemp("", "viewer-dicom-*.dcm")
+	if err != nil {
+		_ = downloadResponse.Body.Close()
+		return fmt.Errorf("create temporary DICOM file: %w", err)
+	}
+	temporaryPath := temporaryFile.Name()
+	defer func() {
+		_ = temporaryFile.Close()
+		_ = os.Remove(temporaryPath)
+	}()
+
+	written, copyErr := io.Copy(temporaryFile, downloadResponse.Body)
+	closeErr := downloadResponse.Body.Close()
+	if copyErr != nil {
+		return fmt.Errorf("download DICOM %s body: %w", file.Name, copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close DICOM %s download: %w", file.Name, closeErr)
+	}
+	if written != file.Size {
+		return fmt.Errorf(
+			"download DICOM %s size mismatch: received=%d expected=%d",
+			file.Name,
+			written,
+			file.Size,
+		)
+	}
+	if _, err := temporaryFile.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewind DICOM %s: %w", file.Name, err)
+	}
+
+	uploadRequest, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		remoteURL,
+		temporaryFile,
+	)
+	if err != nil {
+		return fmt.Errorf("build remote PACS request: %w", err)
+	}
+	uploadRequest.ContentLength = file.Size
+	uploadRequest.Header.Set("Content-Type", "application/dicom")
+	if username != "" || password != "" {
+		uploadRequest.SetBasicAuth(username, password)
+	}
+	uploadResponse, err := client.Do(uploadRequest)
+	if err != nil {
+		return fmt.Errorf("upload DICOM %s: %w", file.Name, err)
+	}
+	_, _ = io.Copy(io.Discard, uploadResponse.Body)
+	_ = uploadResponse.Body.Close()
+	if uploadResponse.StatusCode < 200 || uploadResponse.StatusCode >= 300 {
+		return fmt.Errorf("upload DICOM %s: HTTP %d", file.Name, uploadResponse.StatusCode)
 	}
 	return nil
 }

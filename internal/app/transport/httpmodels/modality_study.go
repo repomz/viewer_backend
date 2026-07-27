@@ -69,8 +69,8 @@ func (r *ModalityStudyRequest) Validate(expectedModality string) error {
 		if file.Name == "" {
 			return fmt.Errorf("%w: dicom_files.name", domain.ErrRequired)
 		}
-		if file.Size < 0 {
-			return fmt.Errorf("%w: dicom_files.size", domain.ErrNegative)
+		if file.Size <= 0 {
+			return fmt.Errorf("%w: dicom_files.size must be positive", domain.ErrInvalidRequest)
 		}
 		parsedURL, err := url.Parse(file.URL)
 		if err != nil || parsedURL.Host == "" ||

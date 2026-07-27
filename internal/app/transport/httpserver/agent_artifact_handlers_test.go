@@ -85,6 +85,48 @@ func TestCreateModalityStudyRequiresRemotePACSConfiguration(t *testing.T) {
 	}
 }
 
+func TestCreateModalityStudyRejectsTruncatedDicomBeforeRemoteImport(t *testing.T) {
+	dicomSource := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("short"))
+	}))
+	defer dicomSource.Close()
+
+	imported := 0
+	remotePACS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		imported++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer remotePACS.Close()
+	t.Setenv("REMOTE_PACS_URL", remotePACS.URL)
+
+	service := &studyServiceStub{}
+	handler := NewHttpServer(service, nil, nil)
+	body, _ := json.Marshal(map[string]any{
+		"study_uid":  "1.2.3",
+		"patient":    "Иванов И.И.",
+		"study_date": "20260726",
+		"modality":   "CT",
+		"dicom_link": "s3://bucket/1.2.3",
+		"dicom_files": []map[string]any{
+			{"name": "1.dcm", "size": 6, "url": dicomSource.URL + "/1"},
+		},
+	})
+	request := httptest.NewRequest(http.MethodPost, "/ct_studies", bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+
+	handler.CreateCTStudy(recorder, request)
+
+	if recorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadGateway, recorder.Body)
+	}
+	if imported != 0 {
+		t.Fatalf("remote imports = %d, want 0", imported)
+	}
+	if service.created.StudyID() != "" {
+		t.Fatalf("study was persisted after truncated import: %#v", service.created)
+	}
+}
+
 func TestReportsAreStoredAndReturned(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv("REPORTS_DIR", directory)
