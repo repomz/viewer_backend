@@ -253,6 +253,7 @@ docker compose version
 | `22` | SSH | только администраторы |
 | `8080` | Viewer Backend API | больничные агенты и доверенные клиенты |
 | `3000` | OHIF Viewer | пользователи больничной сети |
+| `5173` | Viewer Frontend | пользователи больничной сети |
 | `8042` | Orthanc HTTP/REST | администраторы; backend использует внутреннюю Docker-сеть |
 | `4242` | Orthanc DICOM | только доверенные DICOM-устройства, если нужен DIMSE-импорт |
 
@@ -344,6 +345,7 @@ BACKEND_PORT=8080
 ORTHANC_HTTP_PORT=8042
 ORTHANC_DICOM_PORT=4242
 OHIF_PORT=3000
+FRONTEND_PORT=5173
 REPORTS_DIR=/app/reports
 
 REMOTE_PACS_URL=http://pacs:8042/instances
@@ -353,6 +355,7 @@ REMOTE_PACS_TIMEOUT_SECONDS=300
 
 BACKEND_IMAGE=viewer-backend:local
 BACKEND_MIGRATIONS_IMAGE=viewer-backend-migrations:local
+FRONTEND_IMAGE=idrisovmarat/viewer_frontend:0.1.0
 IMAGE_VERSION=production
 VCS_REF=COMMIT
 ```
@@ -440,10 +443,10 @@ docker compose config --quiet
 
 ## 10. Предварительная проверка Compose
 
-Посмотрите список сервисов:
+Посмотрите список сервисов полного стека, включая опубликованный frontend:
 
 ```bash
-docker compose config --services
+docker compose -f compose.yaml -f compose.frontend.yaml config --services
 ```
 
 Ожидается:
@@ -454,13 +457,14 @@ migrations
 backend
 pacs
 ohif
+frontend
 ```
 
 Проверьте итоговые образы и опубликованные адреса:
 
 ```bash
-docker compose config --images
-docker compose config | less
+docker compose -f compose.yaml -f compose.frontend.yaml config --images
+docker compose -f compose.yaml -f compose.frontend.yaml config | less
 ```
 
 В итоговой конфигурации пароль PostgreSQL отображается открытым текстом.
@@ -471,7 +475,9 @@ docker compose config | less
 Из каталога `/opt/viewer/viewer_backend` выполните одну команду:
 
 ```bash
-docker compose up -d --build --wait --remove-orphans
+docker compose -f compose.yaml -f compose.frontend.yaml pull frontend
+docker compose -f compose.yaml -f compose.frontend.yaml \
+  up -d --build --wait --remove-orphans
 ```
 
 Первая сборка и загрузка образов могут занять несколько минут.
@@ -488,6 +494,7 @@ docker compose ps -a
 - `backend` — `Up (healthy)`;
 - `pacs` — `Up (healthy)`;
 - `ohif` — `Up` или `Up (healthy)`;
+- `frontend` — `Up (healthy)`;
 - `migrations` — `Exited (0)`.
 
 `migrations: Exited (0)` является успешным результатом, а не ошибкой.
@@ -518,6 +525,18 @@ curl --fail --show-error "http://${SERVER_IP}:8080/"
 
 ```text
 DICOM viewer API v0.1
+```
+
+Frontend:
+
+```bash
+curl --fail --show-error "http://${SERVER_IP}:5173/healthz"
+```
+
+Ожидается:
+
+```text
+ok
 ```
 
 Orthanc:
