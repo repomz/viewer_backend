@@ -45,6 +45,26 @@ services:
     networks:
       - application
 
+  reports-init:
+    image: alpine:3.22
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - sh
+      - -c
+      - chown 10001:10001 /app/reports && chmod 750 /app/reports
+    volumes:
+      - reports-data:/app/reports
+    restart: "no"
+
   backend:
     image: ${BACKEND_IMAGE:-viewer-backend:local}
     build:
@@ -69,6 +89,8 @@ services:
       - "${BIND_ADDRESS:-0.0.0.0}:${BACKEND_PORT:-8080}:8080"
     depends_on:
       migrations:
+        condition: service_completed_successfully
+      reports-init:
         condition: service_completed_successfully
     restart: unless-stopped
     networks:

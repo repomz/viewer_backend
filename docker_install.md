@@ -287,6 +287,11 @@ git clone https://github.com/repomz/viewer_backend.git
 cd viewer_backend
 ```
 
+Каталог проекта и файлы `.env` должны принадлежать отдельному пользователю
+развёртывания, а не `root`. После настройки Docker запускайте `docker compose`
+от этого пользователя без `sudo`. UID `10001` используется только внутри
+контейнера backend; назначать его владельцем исходного кода на сервере не нужно.
+
 Проверьте содержимое:
 
 ```bash
@@ -351,6 +356,10 @@ BACKEND_MIGRATIONS_IMAGE=viewer-backend-migrations:local
 IMAGE_VERSION=production
 VCS_REF=COMMIT
 ```
+
+Именованный volume отчётов подготавливается сервисом `reports-init`: он
+назначает каталогу `/app/reports` владельца UID/GID `10001` и завершается.
+Backend запускается только после успешной подготовки каталога.
 
 Значение `BIND_ADDRESS` должно существовать на сервере:
 

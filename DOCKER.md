@@ -111,6 +111,8 @@ docker buildx build \
 - порт: `8080`;
 - обязательная переменная: `DB_DSN`;
 - каталог отчётов: `REPORTS_DIR`;
+- сервис `reports-init` перед запуском backend назначает каталогу отчётов
+  владельца UID/GID `10001`;
 - remote PACS: `REMOTE_PACS_URL`, `REMOTE_PACS_USERNAME`,
   `REMOTE_PACS_PASSWORD`, `REMOTE_PACS_TIMEOUT_SECONDS`;
 - healthcheck: `GET /`;
