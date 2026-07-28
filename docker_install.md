@@ -330,7 +330,7 @@ nano .env
 
 Проверьте и измените как минимум:
 
-```dotenv
+```bash
 COMPOSE_PROJECT_NAME=viewer
 TZ=Asia/Tomsk
 
