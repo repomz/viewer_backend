@@ -446,7 +446,7 @@ docker compose config --quiet
 Посмотрите список сервисов полного стека, включая опубликованный frontend:
 
 ```bash
-docker compose -f compose.yaml -f compose.frontend.yaml config --services
+docker compose config --services
 ```
 
 Ожидается:
@@ -463,8 +463,8 @@ frontend
 Проверьте итоговые образы и опубликованные адреса:
 
 ```bash
-docker compose -f compose.yaml -f compose.frontend.yaml config --images
-docker compose -f compose.yaml -f compose.frontend.yaml config | less
+docker compose config --images
+docker compose config | less
 ```
 
 В итоговой конфигурации пароль PostgreSQL отображается открытым текстом.
@@ -475,9 +475,8 @@ docker compose -f compose.yaml -f compose.frontend.yaml config | less
 Из каталога `/opt/viewer/viewer_backend` выполните одну команду:
 
 ```bash
-docker compose -f compose.yaml -f compose.frontend.yaml pull frontend
-docker compose -f compose.yaml -f compose.frontend.yaml \
-  up -d --build --wait --remove-orphans
+docker compose pull frontend
+docker compose up -d --build --wait --remove-orphans
 ```
 
 Первая сборка и загрузка образов могут занять несколько минут.
@@ -491,10 +490,10 @@ docker compose ps -a
 Ожидаемое состояние:
 
 - `postgres` — `Up (healthy)`;
-- `backend` — `Up (healthy)`;
+- `backend` — `Up`;
 - `pacs` — `Up (healthy)`;
 - `ohif` — `Up` или `Up (healthy)`;
-- `frontend` — `Up (healthy)`;
+- `frontend` — `Up`;
 - `migrations` — `Exited (0)`.
 
 `migrations: Exited (0)` является успешным результатом, а не ошибкой.
@@ -867,3 +866,41 @@ sudo du -sh /var/lib/docker
 - [ ] Настроено регулярное резервное копирование.
 - [ ] Резервные копии хранятся вне основного сервера.
 - [ ] Проверено восстановление на тестовой машине.
+
+
+
+## 20. Guide to renew containers // не исправлять!
+
+```bash
+
+git status
+git stash  # если есть untracked files
+
+docker compose ps
+
+docker compose down
+
+docker stop $(docker ps -aq).  # если какие то контейнеры не удаляются - Resource is still in use
+docker rm -f $(docker ps -aq)  # если какие то контейнеры не удаляются - Resource is still in use
+
+# Не добавляйте --volumes при обновлении: этот ключ удалит БД и PACS.
+
+git pull
+
+git stash drop
+
+git status
+
+cp .env.compose.example .env
+
+cat .env
+
+chmod 600 .env
+
+grep FRONTEND_IMAGE .env
+
+docker compose pull frontend
+
+docker compose up -d --build --wait --remove-orphans
+
+```

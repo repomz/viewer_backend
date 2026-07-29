@@ -10,7 +10,7 @@ services:
       - "${BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-5173}:8080"
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
       ohif:
         condition: service_started
     restart: unless-stopped
@@ -24,3 +24,4 @@ services:
       - /tmp:size=32m,mode=1777
     networks:
       - application
+      - pacs

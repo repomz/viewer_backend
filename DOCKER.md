@@ -9,7 +9,7 @@ cd viewer_backend
 cp .env.compose.example .env
 ```
 
-Запуск PostgreSQL, миграций, backend, Orthanc PACS и OHIF:
+Запуск PostgreSQL, миграций, backend, Orthanc PACS, OHIF и frontend:
 
 ```bash
 docker compose up -d --build --wait --remove-orphans
@@ -18,6 +18,7 @@ docker compose up -d --build --wait --remove-orphans
 После запуска:
 
 - backend: `http://SERVER:8080`;
+- frontend: `http://SERVER:5173`;
 - OHIF: `http://SERVER:3000`;
 - Orthanc Explorer: `http://SERVER:8042`;
 - DICOM PACS: AE Title `MAPDR`, порт `4242`;
@@ -41,11 +42,16 @@ docker compose down
 docker compose down --volumes
 ```
 
+> **Осторожно:** ключ `--volumes` удаляет named volumes PostgreSQL, Orthanc и
+> отчётов. Вместе с ними будут удалены протоколы, XA/CT в PACS и сохранённые
+> отчёты. Для обычного обновления используйте `docker compose down` без этого
+> ключа.
+
 Просмотр состояния и логов:
 
 ```bash
 docker compose ps
-docker compose logs -f backend pacs ohif
+docker compose logs -f backend pacs ohif frontend
 ```
 
 ## Образы из registry

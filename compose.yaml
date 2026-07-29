@@ -133,6 +133,31 @@ services:
     networks:
       - pacs
 
+  frontend:
+    image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.1.0}
+    environment:
+      BACKEND_URL: http://backend:8080
+      OHIF_URL: http://ohif
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-5173}:8080"
+    depends_on:
+      backend:
+        condition: service_started
+      ohif:
+        condition: service_started
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - application
+      - pacs
+
 networks:
   application:
     driver: bridge
