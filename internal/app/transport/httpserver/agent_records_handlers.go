@@ -13,6 +13,15 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
+func (h HttpServer) GetAgents(w http.ResponseWriter, r *http.Request) {
+	ids, err := h.agentRecordsService.GetAgentIDs(r.Context())
+	if err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+	server.RespondOK(ids, w, r)
+}
+
 // DeleteStudy deletes a agent record by ID
 func (h HttpServer) DeleteAllAgentRecords(w http.ResponseWriter, r *http.Request) {
 	// Получаем agent ID из пути

@@ -40,6 +40,18 @@ func (s *userRequestServiceStub) GetByID(context.Context, uuid.UUID) (domain.Use
 	return s.request, nil
 }
 
+func (s *userRequestServiceStub) List(context.Context, string, int32, int32) ([]domain.UserRequest, error) {
+	return []domain.UserRequest{s.request}, nil
+}
+
+func (s *userRequestServiceStub) Delete(context.Context, uuid.UUID, string) error {
+	return nil
+}
+
+func (s *userRequestServiceStub) DeleteAll(context.Context, string, int32) error {
+	return nil
+}
+
 func queuedUserRequest() domain.UserRequest {
 	return domain.UserRequest{
 		ID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),

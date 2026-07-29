@@ -21,6 +21,14 @@ func NewAgentRecordRepo(qr *db.Queries) *AgentRecordRepo {
 	}
 }
 
+func (a AgentRecordRepo) GetAgentIDs(ctx context.Context) ([]int32, error) {
+	ids, err := a.query.GetAgentIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agent IDs: %w", err)
+	}
+	return ids, nil
+}
+
 func (a AgentRecordRepo) DeleteAllAgentRecords(ctx context.Context, agent_id int32) error {
 	if agent_id <= 0 {
 		return fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)

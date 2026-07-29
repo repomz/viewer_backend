@@ -37,6 +37,34 @@ func (q *Queries) DeleteAgentRecordsByAgentID(ctx context.Context, agentID int32
 	return err
 }
 
+const getAgentIDs = `-- name: GetAgentIDs :many
+SELECT DISTINCT agent_id FROM agent_records
+ORDER BY agent_id
+`
+
+func (q *Queries) GetAgentIDs(ctx context.Context) ([]int32, error) {
+	rows, err := q.query(ctx, q.getAgentIDsStmt, getAgentIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var agent_id int32
+		if err := rows.Scan(&agent_id); err != nil {
+			return nil, err
+		}
+		items = append(items, agent_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAgentRecordsByAgentID = `-- name: GetAgentRecordsByAgentID :many
 SELECT sent_at FROM agent_records
 WHERE agent_id = $1

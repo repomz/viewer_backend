@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gorilla/mux"
 )
 
 func TestCreateCTStudyImportsEveryDicomBeforePersisting(t *testing.T) {
@@ -160,6 +162,19 @@ func TestReportsAreStoredAndReturned(t *testing.T) {
 		!bytes.Contains(listRecorder.Body.Bytes(), []byte(`"planned_count":3`)) ||
 		!bytes.Contains(listRecorder.Body.Bytes(), []byte(`"filename":`)) {
 		t.Fatalf("status = %d; body=%s", listRecorder.Code, listRecorder.Body)
+	}
+
+	deleteRequest := httptest.NewRequest(http.MethodDelete, "/reports/"+entries[0].Name(), nil)
+	deleteRequest = mux.SetURLVars(deleteRequest, map[string]string{
+		"filename": entries[0].Name(),
+	})
+	deleteRecorder := httptest.NewRecorder()
+	handler.DeleteReport(deleteRecorder, deleteRequest)
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d; body=%s", deleteRecorder.Code, deleteRecorder.Body)
+	}
+	if _, err := os.Stat(filepath.Join(directory, entries[0].Name())); !os.IsNotExist(err) {
+		t.Fatalf("report still exists after delete: %v", err)
 	}
 }
 

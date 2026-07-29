@@ -19,6 +19,10 @@ func NewAgentRecordsService(repo AgentRecordsRepository) AgentRecordsService {
 	}
 }
 
+func (a AgentRecordsService) GetAgentIDs(ctx context.Context) ([]int32, error) {
+	return a.repo.GetAgentIDs(ctx)
+}
+
 func (a AgentRecordsService) GetAgentRecordsByAgentID(ctx context.Context, id int32) ([]time.Time, error) {
 	return a.repo.GetAgentRecordsByAgentID(ctx, id)
 }

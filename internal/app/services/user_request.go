@@ -52,3 +52,32 @@ func (s UserRequestService) GetByID(ctx context.Context, id uuid.UUID) (domain.U
 	}
 	return s.repo.GetByID(ctx, id)
 }
+
+func (s UserRequestService) List(
+	ctx context.Context,
+	userID string,
+	agentID int32,
+	limit int32,
+) ([]domain.UserRequest, error) {
+	if userID == "" || agentID <= 0 {
+		return nil, fmt.Errorf("%w: user_id and agent_id", domain.ErrInvalidRequest)
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	return s.repo.List(ctx, userID, agentID, limit)
+}
+
+func (s UserRequestService) Delete(ctx context.Context, id uuid.UUID, userID string) error {
+	if id == uuid.Nil || userID == "" {
+		return fmt.Errorf("%w: request_id and user_id", domain.ErrInvalidRequest)
+	}
+	return s.repo.Delete(ctx, id, userID)
+}
+
+func (s UserRequestService) DeleteAll(ctx context.Context, userID string, agentID int32) error {
+	if userID == "" || agentID <= 0 {
+		return fmt.Errorf("%w: user_id and agent_id", domain.ErrInvalidRequest)
+	}
+	return s.repo.DeleteAll(ctx, userID, agentID)
+}

@@ -115,6 +115,48 @@ func (r UserRequestRepo) GetByID(ctx context.Context, id uuid.UUID) (domain.User
 	return dbUserRequestToDomain(request), nil
 }
 
+func (r UserRequestRepo) List(
+	ctx context.Context,
+	userID string,
+	agentID int32,
+	limit int32,
+) ([]domain.UserRequest, error) {
+	rows, err := r.query.ListUserRequests(ctx, db.ListUserRequestsParams{
+		UserID: userID, AgentID: agentID, Limit: limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list user requests: %w", err)
+	}
+	result := make([]domain.UserRequest, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, dbUserRequestToDomain(row))
+	}
+	return result, nil
+}
+
+func (r UserRequestRepo) Delete(ctx context.Context, id uuid.UUID, userID string) error {
+	count, err := r.query.DeleteUserRequest(ctx, db.DeleteUserRequestParams{
+		ID: id, UserID: userID,
+	})
+	if err != nil {
+		return fmt.Errorf("delete user request: %w", err)
+	}
+	if count == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r UserRequestRepo) DeleteAll(ctx context.Context, userID string, agentID int32) error {
+	_, err := r.query.DeleteAllUserRequests(ctx, db.DeleteAllUserRequestsParams{
+		UserID: userID, AgentID: agentID,
+	})
+	if err != nil {
+		return fmt.Errorf("delete all user requests: %w", err)
+	}
+	return nil
+}
+
 func dbUserRequestToDomain(request db.UserRequest) domain.UserRequest {
 	var leaseExpiresAt, completedAt *time.Time
 	if request.LeaseExpiresAt.Valid {

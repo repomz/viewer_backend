@@ -11,16 +11,20 @@ import (
 )
 
 var allowedAgentCommands = map[string]bool{
-	"get_report":     true,
-	"find_study":     true,
-	"find_xa":        true,
-	"find_ct":        true,
-	"get_xa":         true,
-	"get_ct":         true,
-	"xa_polling_on":  true,
-	"xa_polling_off": true,
-	"ct_polling_on":  true,
-	"ct_polling_off": true,
+	"get_report":      true,
+	"get_plan":        true,
+	"find_study":      true,
+	"import_study":    true,
+	"find_xa":         true,
+	"find_ct":         true,
+	"get_xa":          true,
+	"get_ct":          true,
+	"send_xa_to_pacs": true,
+	"send_ct_to_pacs": true,
+	"xa_polling_on":   true,
+	"xa_polling_off":  true,
+	"ct_polling_on":   true,
+	"ct_polling_off":  true,
 }
 
 type UserRequestCreateRequest struct {
@@ -52,9 +56,13 @@ func (r *UserRequestCreateRequest) Validate() error {
 		r.Payload = map[string]any{}
 	}
 	switch r.Command {
-	case "get_xa", "get_ct":
+	case "get_xa", "get_ct", "send_xa_to_pacs", "send_ct_to_pacs":
 		if strings.TrimSpace(stringValue(r.Payload["study_uid"])) == "" {
 			return fmt.Errorf("%w: payload.study_uid", domain.ErrRequired)
+		}
+	case "import_study":
+		if strings.TrimSpace(stringValue(r.Payload["protocol_ref"])) == "" {
+			return fmt.Errorf("%w: payload.protocol_ref", domain.ErrRequired)
 		}
 	case "find_xa", "find_ct", "find_study":
 		if strings.TrimSpace(stringValue(r.Payload["patient"])) == "" &&

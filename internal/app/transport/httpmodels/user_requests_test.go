@@ -44,3 +44,24 @@ func TestOnlyCanonicalAgentCommandsAreAccepted(t *testing.T) {
 		}
 	}
 }
+
+func TestInteractiveWorkflowCommandsAreAccepted(t *testing.T) {
+	cases := []UserRequestCreateRequest{
+		{UserID: "operator", AgentID: 2, Command: "get_plan"},
+		{
+			UserID: "operator", AgentID: 2, Command: "import_study",
+			Payload: map[string]any{"protocol_ref": "opaque-reference"},
+		},
+		{
+			UserID: "operator", AgentID: 2, Command: "send_xa_to_pacs",
+			Payload: map[string]any{"study_uid": "1.2.3"},
+		},
+		{UserID: "operator", AgentID: 2, Command: "xa_polling_on"},
+		{UserID: "operator", AgentID: 2, Command: "ct_polling_off"},
+	}
+	for _, request := range cases {
+		if err := request.Validate(); err != nil {
+			t.Fatalf("command %q rejected: %v", request.Command, err)
+		}
+	}
+}

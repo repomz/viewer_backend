@@ -82,6 +82,21 @@ SELECT *
 FROM user_requests
 WHERE id = $1;
 
+-- name: ListUserRequests :many
+SELECT *
+FROM user_requests
+WHERE user_id = $1 AND agent_id = $2
+ORDER BY created_at DESC
+LIMIT $3;
+
+-- name: DeleteUserRequest :execrows
+DELETE FROM user_requests
+WHERE id = $1 AND user_id = $2;
+
+-- name: DeleteAllUserRequests :execrows
+DELETE FROM user_requests
+WHERE user_id = $1 AND agent_id = $2;
+
 -- name: GetOldRequestsForArchive :many
 SELECT *
 FROM user_requests

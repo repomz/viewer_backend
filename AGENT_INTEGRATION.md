@@ -1,6 +1,6 @@
 # Интеграция viewer_backend и hospital_agent
 
-Дата актуализации: 26 июля 2026 года.
+Дата актуализации: 29 июля 2026 года.
 
 Проекты:
 
@@ -14,8 +14,11 @@ Backend хранит очередь команд. Агент с конкретн
 Поддержанные команды:
 
 - `get_report`;
+- `get_plan`;
 - `find_study`, `find_xa`, `find_ct`;
+- `import_study`;
 - `get_xa`, `get_ct`;
+- `send_xa_to_pacs`, `send_ct_to_pacs`;
 - `xa_polling_on`, `xa_polling_off`;
 - `ct_polling_on`, `ct_polling_off`.
 
@@ -62,6 +65,12 @@ Content-Type: application/json
 Backend отклоняет неизвестную команду. Для `get_xa`/`get_ct` обязателен
 `payload.study_uid`; для команд поиска — `payload.patient`. `get_report` принимает
 только `payload.period` от 1 до 4.
+
+`find_study` возвращает массив вариантов с непрозрачным `protocol_ref`.
+`import_study` требует выбранный `protocol_ref` и только после этого отправляет
+полный протокол в `/studies`. `get_plan` принимает необязательную дату
+`YYYY-MM-DD`. Команды `send_*_to_pacs` требуют `study_uid` и принудительно
+повторяют импорт DICOM в удалённый PACS.
 
 ## Получение команды агентом
 
@@ -140,6 +149,11 @@ GET /user_requests/11111111-1111-1111-1111-111111111111
 Ответ содержит `status`, `attempt_count`, `max_attempts`, `result`, `errors`,
 временные метки и lease.
 
+История интерфейса загружается через
+`GET /user_requests/history?user_id=...&agent_id=...`. Один элемент удаляется
+через `DELETE /user_requests/{id}?user_id=...`, вся история пользователя и
+агента — через `DELETE /user_requests/history?user_id=...&agent_id=...`.
+
 ## Протоколы операций
 
 Агент отправляет разобранные DOCX-протоколы только в `/studies`. Payload синхронизирован с backend:
@@ -148,6 +162,8 @@ GET /user_requests/11111111-1111-1111-1111-111111111111
 - используется корректное поле `time_beginning`;
 - добавлен обязательный `study_type`;
 - хирург нормализуется до фамилии;
+- название операции и ход операции хранятся раздельно и без сокращения полного
+  протокола;
 - отсутствующие описание/отделение получают допустимое значение.
 
 ## Перед первым запуском

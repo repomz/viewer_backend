@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -12,6 +13,64 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
 	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
+
+func (h HttpServer) ListUserRequests(w http.ResponseWriter, r *http.Request) {
+	agentID, err := parseAgentID(r.URL.Query().Get("agent_id"))
+	if err != nil {
+		server.BadRequest("invalid-agent-id", err, w, r)
+		return
+	}
+	userID := strings.TrimSpace(r.URL.Query().Get("user_id"))
+	limit := int32(100)
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		value, parseErr := strconv.Atoi(raw)
+		if parseErr != nil {
+			server.BadRequest("invalid-limit", parseErr, w, r)
+			return
+		}
+		limit = int32(value)
+	}
+	requests, err := h.userRequestService.List(r.Context(), userID, agentID, limit)
+	if err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+	response := make([]httpmodels.UserRequestResponse, 0, len(requests))
+	for _, request := range requests {
+		response = append(response, toUserRequestResponse(request))
+	}
+	server.RespondOK(response, w, r)
+}
+
+func (h HttpServer) DeleteUserRequest(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(mux.Vars(r)["request_id"])
+	if err != nil {
+		server.BadRequest("invalid-request-id", err, w, r)
+		return
+	}
+	if err := h.userRequestService.Delete(
+		r.Context(), id, strings.TrimSpace(r.URL.Query().Get("user_id")),
+	); err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+	server.RespondOK(map[string]bool{"deleted": true}, w, r)
+}
+
+func (h HttpServer) DeleteAllUserRequests(w http.ResponseWriter, r *http.Request) {
+	agentID, err := parseAgentID(r.URL.Query().Get("agent_id"))
+	if err != nil {
+		server.BadRequest("invalid-agent-id", err, w, r)
+		return
+	}
+	if err := h.userRequestService.DeleteAll(
+		r.Context(), strings.TrimSpace(r.URL.Query().Get("user_id")), agentID,
+	); err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+	server.RespondOK(map[string]bool{"deleted": true}, w, r)
+}
 
 func (h HttpServer) CreateUserRequest(w http.ResponseWriter, r *http.Request) {
 	var request httpmodels.UserRequestCreateRequest

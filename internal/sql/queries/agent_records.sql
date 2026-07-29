@@ -12,6 +12,10 @@ SELECT sent_at FROM agent_records
 WHERE agent_id = $1 AND status = $2
 ORDER BY sent_at DESC;
 
+-- name: GetAgentIDs :many
+SELECT DISTINCT agent_id FROM agent_records
+ORDER BY agent_id;
+
 -- name: GetAgentRecordsByStatus :many
 SELECT id FROM agent_records
 WHERE status = $1
@@ -20,4 +24,3 @@ ORDER BY sent_at DESC;
 -- name: DeleteAgentRecordsByAgentID :exec
 DELETE FROM agent_records
 WHERE agent_id = $1;
-

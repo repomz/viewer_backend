@@ -45,6 +45,12 @@ func (h HttpServer) createModalityStudy(
 		strings.ToLower(modality),
 	)
 	if err == nil {
+		if r.URL.Query().Get("force_pacs") == "true" {
+			if err := importRemotePACS(r.Context(), request.DicomFiles); err != nil {
+				server.BadGateway("remote-pacs-import", err, w, r)
+				return
+			}
+		}
 		server.RespondOK(toResponseStudy(existing), w, r)
 		return
 	}

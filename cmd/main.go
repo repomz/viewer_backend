@@ -107,6 +107,7 @@ func run() error {
 	router.HandleFunc("/reports", httpServer.CreateReport).Methods(http.MethodPost)
 	router.HandleFunc("/reports", httpServer.GetReports).Methods(http.MethodGet)
 	router.HandleFunc("/reports/{filename}", httpServer.GetReport).Methods(http.MethodGet)
+	router.HandleFunc("/reports/{filename}", httpServer.DeleteReport).Methods(http.MethodDelete)
 
 	// Backward-compatible singular routes.
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
@@ -116,13 +117,17 @@ func run() error {
 	router.HandleFunc("/study/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
 
 	router.HandleFunc("/agent_status", httpServer.CreateAgentRecord).Methods(http.MethodPost)
+	router.HandleFunc("/agents", httpServer.GetAgents).Methods(http.MethodGet)
 	router.HandleFunc("/agent_status/{agent_id}", httpServer.DeleteAllAgentRecords).Methods(http.MethodDelete)
 	router.HandleFunc("/agent_status/searchby_id", httpServer.GetAgentRecordsByAgentID).Methods(http.MethodGet)
 	router.HandleFunc("/agent_status/searchby_status", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
 
 	router.HandleFunc("/user_requests", httpServer.CreateUserRequest).Methods(http.MethodPost)
 	router.HandleFunc("/user_requests", httpServer.ClaimUserRequest).Methods(http.MethodGet)
+	router.HandleFunc("/user_requests/history", httpServer.ListUserRequests).Methods(http.MethodGet)
+	router.HandleFunc("/user_requests/history", httpServer.DeleteAllUserRequests).Methods(http.MethodDelete)
 	router.HandleFunc("/user_requests/{request_id}", httpServer.GetUserRequest).Methods(http.MethodGet)
+	router.HandleFunc("/user_requests/{request_id}", httpServer.DeleteUserRequest).Methods(http.MethodDelete)
 	router.HandleFunc("/user_requests/{request_id}/result", httpServer.RecordUserRequestResult).Methods(http.MethodPost)
 
 	srv := &http.Server{

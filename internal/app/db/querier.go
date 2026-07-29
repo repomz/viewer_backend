@@ -19,8 +19,11 @@ type Querier interface {
 	CreateStudy(ctx context.Context, arg CreateStudyParams) (Study, error)
 	CreateUserRequest(ctx context.Context, arg CreateUserRequestParams) (UserRequest, error)
 	DeleteAgentRecordsByAgentID(ctx context.Context, agentID int32) error
+	DeleteAllUserRequests(ctx context.Context, arg DeleteAllUserRequestsParams) (int64, error)
 	DeleteOldRequests(ctx context.Context) error
+	DeleteUserRequest(ctx context.Context, arg DeleteUserRequestParams) (int64, error)
 	FailUserRequest(ctx context.Context, arg FailUserRequestParams) (UserRequest, error)
+	GetAgentIDs(ctx context.Context) ([]int32, error)
 	GetAgentRecordsByAgentID(ctx context.Context, agentID int32) ([]time.Time, error)
 	GetAgentRecordsByAgentIDandStatus(ctx context.Context, arg GetAgentRecordsByAgentIDandStatusParams) ([]time.Time, error)
 	GetAgentRecordsByStatus(ctx context.Context, status string) ([]uuid.UUID, error)
@@ -37,6 +40,7 @@ type Querier interface {
 	GetStudyByPatient(ctx context.Context, patient string) (Study, error)
 	GetStudyByStudyIDAndType(ctx context.Context, arg GetStudyByStudyIDAndTypeParams) (Study, error)
 	GetUserRequestByID(ctx context.Context, id uuid.UUID) (UserRequest, error)
+	ListUserRequests(ctx context.Context, arg ListUserRequestsParams) ([]UserRequest, error)
 	RetryUserRequest(ctx context.Context, arg RetryUserRequestParams) (UserRequest, error)
 	SoftDeleteAllStudies(ctx context.Context) error
 	SoftDeleteStudy(ctx context.Context, id uuid.UUID) error

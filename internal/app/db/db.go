@@ -42,11 +42,20 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteAgentRecordsByAgentIDStmt, err = db.PrepareContext(ctx, deleteAgentRecordsByAgentID); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteAgentRecordsByAgentID: %w", err)
 	}
+	if q.deleteAllUserRequestsStmt, err = db.PrepareContext(ctx, deleteAllUserRequests); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteAllUserRequests: %w", err)
+	}
 	if q.deleteOldRequestsStmt, err = db.PrepareContext(ctx, deleteOldRequests); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteOldRequests: %w", err)
 	}
+	if q.deleteUserRequestStmt, err = db.PrepareContext(ctx, deleteUserRequest); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteUserRequest: %w", err)
+	}
 	if q.failUserRequestStmt, err = db.PrepareContext(ctx, failUserRequest); err != nil {
 		return nil, fmt.Errorf("error preparing query FailUserRequest: %w", err)
+	}
+	if q.getAgentIDsStmt, err = db.PrepareContext(ctx, getAgentIDs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetAgentIDs: %w", err)
 	}
 	if q.getAgentRecordsByAgentIDStmt, err = db.PrepareContext(ctx, getAgentRecordsByAgentID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetAgentRecordsByAgentID: %w", err)
@@ -96,6 +105,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getUserRequestByIDStmt, err = db.PrepareContext(ctx, getUserRequestByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUserRequestByID: %w", err)
 	}
+	if q.listUserRequestsStmt, err = db.PrepareContext(ctx, listUserRequests); err != nil {
+		return nil, fmt.Errorf("error preparing query ListUserRequests: %w", err)
+	}
 	if q.retryUserRequestStmt, err = db.PrepareContext(ctx, retryUserRequest); err != nil {
 		return nil, fmt.Errorf("error preparing query RetryUserRequest: %w", err)
 	}
@@ -143,14 +155,29 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deleteAgentRecordsByAgentIDStmt: %w", cerr)
 		}
 	}
+	if q.deleteAllUserRequestsStmt != nil {
+		if cerr := q.deleteAllUserRequestsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteAllUserRequestsStmt: %w", cerr)
+		}
+	}
 	if q.deleteOldRequestsStmt != nil {
 		if cerr := q.deleteOldRequestsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteOldRequestsStmt: %w", cerr)
 		}
 	}
+	if q.deleteUserRequestStmt != nil {
+		if cerr := q.deleteUserRequestStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteUserRequestStmt: %w", cerr)
+		}
+	}
 	if q.failUserRequestStmt != nil {
 		if cerr := q.failUserRequestStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing failUserRequestStmt: %w", cerr)
+		}
+	}
+	if q.getAgentIDsStmt != nil {
+		if cerr := q.getAgentIDsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getAgentIDsStmt: %w", cerr)
 		}
 	}
 	if q.getAgentRecordsByAgentIDStmt != nil {
@@ -233,6 +260,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getUserRequestByIDStmt: %w", cerr)
 		}
 	}
+	if q.listUserRequestsStmt != nil {
+		if cerr := q.listUserRequestsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listUserRequestsStmt: %w", cerr)
+		}
+	}
 	if q.retryUserRequestStmt != nil {
 		if cerr := q.retryUserRequestStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing retryUserRequestStmt: %w", cerr)
@@ -298,8 +330,11 @@ type Queries struct {
 	createStudyStmt                       *sql.Stmt
 	createUserRequestStmt                 *sql.Stmt
 	deleteAgentRecordsByAgentIDStmt       *sql.Stmt
+	deleteAllUserRequestsStmt             *sql.Stmt
 	deleteOldRequestsStmt                 *sql.Stmt
+	deleteUserRequestStmt                 *sql.Stmt
 	failUserRequestStmt                   *sql.Stmt
+	getAgentIDsStmt                       *sql.Stmt
 	getAgentRecordsByAgentIDStmt          *sql.Stmt
 	getAgentRecordsByAgentIDandStatusStmt *sql.Stmt
 	getAgentRecordsByStatusStmt           *sql.Stmt
@@ -316,6 +351,7 @@ type Queries struct {
 	getStudyByPatientStmt                 *sql.Stmt
 	getStudyByStudyIDAndTypeStmt          *sql.Stmt
 	getUserRequestByIDStmt                *sql.Stmt
+	listUserRequestsStmt                  *sql.Stmt
 	retryUserRequestStmt                  *sql.Stmt
 	softDeleteAllStudiesStmt              *sql.Stmt
 	softDeleteStudyStmt                   *sql.Stmt
@@ -332,8 +368,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createStudyStmt:                       q.createStudyStmt,
 		createUserRequestStmt:                 q.createUserRequestStmt,
 		deleteAgentRecordsByAgentIDStmt:       q.deleteAgentRecordsByAgentIDStmt,
+		deleteAllUserRequestsStmt:             q.deleteAllUserRequestsStmt,
 		deleteOldRequestsStmt:                 q.deleteOldRequestsStmt,
+		deleteUserRequestStmt:                 q.deleteUserRequestStmt,
 		failUserRequestStmt:                   q.failUserRequestStmt,
+		getAgentIDsStmt:                       q.getAgentIDsStmt,
 		getAgentRecordsByAgentIDStmt:          q.getAgentRecordsByAgentIDStmt,
 		getAgentRecordsByAgentIDandStatusStmt: q.getAgentRecordsByAgentIDandStatusStmt,
 		getAgentRecordsByStatusStmt:           q.getAgentRecordsByStatusStmt,
@@ -350,6 +389,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getStudyByPatientStmt:                 q.getStudyByPatientStmt,
 		getStudyByStudyIDAndTypeStmt:          q.getStudyByStudyIDAndTypeStmt,
 		getUserRequestByIDStmt:                q.getUserRequestByIDStmt,
+		listUserRequestsStmt:                  q.listUserRequestsStmt,
 		retryUserRequestStmt:                  q.retryUserRequestStmt,
 		softDeleteAllStudiesStmt:              q.softDeleteAllStudiesStmt,
 		softDeleteStudyStmt:                   q.softDeleteStudyStmt,

@@ -152,3 +152,20 @@ func (h HttpServer) GetReport(w http.ResponseWriter, r *http.Request) {
 	}
 	server.RespondOK(report, w, r)
 }
+
+func (h HttpServer) DeleteReport(w http.ResponseWriter, r *http.Request) {
+	filename := mux.Vars(r)["filename"]
+	if filename != filepath.Base(filename) || !strings.HasSuffix(filename, ".json") {
+		server.BadRequest("invalid-report-name", fmt.Errorf("invalid report filename"), w, r)
+		return
+	}
+	if err := os.Remove(filepath.Join(reportsDirectory(), filename)); err != nil {
+		if os.IsNotExist(err) {
+			server.NotFound("report-not-found", err, w, r)
+			return
+		}
+		server.InternalError("report-storage", err, w, r)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

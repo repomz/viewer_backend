@@ -21,6 +21,7 @@ type StudyRepository interface {
 }
 
 type AgentRecordsRepository interface {
+	GetAgentIDs(ctx context.Context) ([]int32, error)
 	GetAgentRecordsByAgentID(ctx context.Context, id int32) ([]time.Time, error)
 	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string) ([]time.Time, error)
 	CreateAgentRecord(ctx context.Context, record domain.AgentRecord) error
@@ -32,4 +33,7 @@ type UserRequestRepository interface {
 	ClaimNext(ctx context.Context, agentID int32) (domain.UserRequest, error)
 	RecordResult(ctx context.Context, result domain.UserRequestResult) (domain.UserRequest, error)
 	GetByID(ctx context.Context, id uuid.UUID) (domain.UserRequest, error)
+	List(ctx context.Context, userID string, agentID int32, limit int32) ([]domain.UserRequest, error)
+	Delete(ctx context.Context, id uuid.UUID, userID string) error
+	DeleteAll(ctx context.Context, userID string, agentID int32) error
 }

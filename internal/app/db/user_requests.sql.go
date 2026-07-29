@@ -158,6 +158,24 @@ func (q *Queries) CreateUserRequest(ctx context.Context, arg CreateUserRequestPa
 	return i, err
 }
 
+const deleteAllUserRequests = `-- name: DeleteAllUserRequests :execrows
+DELETE FROM user_requests
+WHERE user_id = $1 AND agent_id = $2
+`
+
+type DeleteAllUserRequestsParams struct {
+	UserID  string `json:"user_id"`
+	AgentID int32  `json:"agent_id"`
+}
+
+func (q *Queries) DeleteAllUserRequests(ctx context.Context, arg DeleteAllUserRequestsParams) (int64, error) {
+	result, err := q.exec(ctx, q.deleteAllUserRequestsStmt, deleteAllUserRequests, arg.UserID, arg.AgentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteOldRequests = `-- name: DeleteOldRequests :exec
 DELETE FROM user_requests
 WHERE status IN ('completed', 'error')
@@ -167,6 +185,24 @@ WHERE status IN ('completed', 'error')
 func (q *Queries) DeleteOldRequests(ctx context.Context) error {
 	_, err := q.exec(ctx, q.deleteOldRequestsStmt, deleteOldRequests)
 	return err
+}
+
+const deleteUserRequest = `-- name: DeleteUserRequest :execrows
+DELETE FROM user_requests
+WHERE id = $1 AND user_id = $2
+`
+
+type DeleteUserRequestParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID string    `json:"user_id"`
+}
+
+func (q *Queries) DeleteUserRequest(ctx context.Context, arg DeleteUserRequestParams) (int64, error) {
+	result, err := q.exec(ctx, q.deleteUserRequestStmt, deleteUserRequest, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const failUserRequest = `-- name: FailUserRequest :one
@@ -288,6 +324,60 @@ func (q *Queries) GetUserRequestByID(ctx context.Context, id uuid.UUID) (UserReq
 		&i.MaxAttempts,
 	)
 	return i, err
+}
+
+const listUserRequests = `-- name: ListUserRequests :many
+SELECT id, created_at, updated_at, available_at, lease_expires_at, completed_at, status, user_id, agent_id, request_type, command, payload, result, error_log, attempt_count, max_attempts
+FROM user_requests
+WHERE user_id = $1 AND agent_id = $2
+ORDER BY created_at DESC
+LIMIT $3
+`
+
+type ListUserRequestsParams struct {
+	UserID  string `json:"user_id"`
+	AgentID int32  `json:"agent_id"`
+	Limit   int32  `json:"limit"`
+}
+
+func (q *Queries) ListUserRequests(ctx context.Context, arg ListUserRequestsParams) ([]UserRequest, error) {
+	rows, err := q.query(ctx, q.listUserRequestsStmt, listUserRequests, arg.UserID, arg.AgentID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserRequest
+	for rows.Next() {
+		var i UserRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AvailableAt,
+			&i.LeaseExpiresAt,
+			&i.CompletedAt,
+			&i.Status,
+			&i.UserID,
+			&i.AgentID,
+			&i.RequestType,
+			&i.Command,
+			&i.Payload,
+			&i.Result,
+			&i.ErrorLog,
+			&i.AttemptCount,
+			&i.MaxAttempts,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const retryUserRequest = `-- name: RetryUserRequest :one
