@@ -873,6 +873,8 @@ sudo du -sh /var/lib/docker
 
 ```bash
 
+cd opt/viewer/viewer_backend
+
 git status
 git stash  # если есть untracked files
 
