@@ -87,6 +87,12 @@ func run() error {
 
 	// create http server with application injected
 	httpServer := httpserver.NewHttpServer(studyService, agentRecordsService, userRequestService)
+	xaCache, err := httpserver.NewXACacheFromEnvironment()
+	if err != nil {
+		return fmt.Errorf("initialize XA cache: %w", err)
+	}
+	httpServer.SetXACache(xaCache)
+	go xaCache.WarmExisting(context.Background())
 
 	// create http router
 	router := mux.NewRouter().StrictSlash(true)
@@ -104,10 +110,15 @@ func run() error {
 	router.HandleFunc("/studies/{study_id}", httpServer.DeleteStudy).Methods(http.MethodDelete)
 	router.HandleFunc("/ct_studies", httpServer.CreateCTStudy).Methods(http.MethodPost)
 	router.HandleFunc("/xa_studies", httpServer.CreateXAStudy).Methods(http.MethodPost)
+	router.HandleFunc("/xa-cache/{study_uid}/manifest", httpServer.GetXACacheManifest).Methods(http.MethodGet)
+	router.HandleFunc("/xa-cache/{study_uid}/prepare", httpServer.PrepareXACache).Methods(http.MethodPost)
+	router.HandleFunc("/xa-cache/{study_uid}/frames/{frame_id}", httpServer.GetXACacheFrame).Methods(http.MethodGet)
 	router.HandleFunc("/reports", httpServer.CreateReport).Methods(http.MethodPost)
 	router.HandleFunc("/reports", httpServer.GetReports).Methods(http.MethodGet)
 	router.HandleFunc("/reports/{filename}", httpServer.GetReport).Methods(http.MethodGet)
 	router.HandleFunc("/reports/{filename}", httpServer.DeleteReport).Methods(http.MethodDelete)
+	router.HandleFunc("/operation-plan", httpServer.GetOperationPlan).Methods(http.MethodGet)
+	router.HandleFunc("/operation-plan/{date}", httpServer.PutOperationPlanDay).Methods(http.MethodPut)
 
 	// Backward-compatible singular routes.
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)

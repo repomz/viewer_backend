@@ -29,8 +29,9 @@ docker compose up -d --build --wait --remove-orphans
 нужно заменить пароль одновременно в `ohif-orthanc/orthanc.json` и Basic Auth
 заголовке `ohif-orthanc/nginx_ohif.conf`, а HTTP закрыть TLS reverse proxy.
 
-Состояние PostgreSQL, Orthanc и JSON-отчётов хранится в named volumes. Остановка
-без удаления данных:
+Состояние PostgreSQL, Orthanc, JSON-отчётов, редактируемого плана и
+подготовленных XA-кадров хранится в named volumes. Остановка без удаления
+данных:
 
 ```bash
 docker compose down
@@ -42,10 +43,10 @@ docker compose down
 docker compose down --volumes
 ```
 
-> **Осторожно:** ключ `--volumes` удаляет named volumes PostgreSQL, Orthanc и
-> отчётов. Вместе с ними будут удалены протоколы, XA/CT в PACS и сохранённые
-> отчёты. Для обычного обновления используйте `docker compose down` без этого
-> ключа.
+> **Осторожно:** ключ `--volumes` удаляет named volumes PostgreSQL, Orthanc,
+> отчётов, плана и серверного XA-кэша. Вместе с ними будут удалены протоколы,
+> XA/CT в PACS, сохранённые отчёты и заполненный план. Для обычного обновления
+> используйте `docker compose down` без этого ключа.
 
 Просмотр состояния и логов:
 
@@ -53,6 +54,10 @@ docker compose down --volumes
 docker compose ps
 docker compose logs -f backend pacs ohif frontend
 ```
+
+После обновления образов XA, уже находящиеся в Orthanc, автоматически
+поставятся в очередь фоновой подготовки. Новые XA добавляются в очередь сразу
+после импорта. Прогресс виден в логах backend по строкам `XA cine cache`.
 
 ## Образы из registry
 

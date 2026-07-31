@@ -5,6 +5,7 @@ type HttpServer struct {
 	studyService        StudyService
 	agentRecordsService AgentRecordsService
 	userRequestService  UserRequestService
+	xaCache             *XACache
 }
 
 // NewHttpServer creates a new HTTP server for ports
@@ -21,4 +22,9 @@ func NewHttpServer(
 		server.userRequestService = userRequestServices[0]
 	}
 	return server
+}
+
+// SetXACache enables server-side preparation of XA cine frames.
+func (h *HttpServer) SetXACache(cache *XACache) {
+	h.xaCache = cache
 }

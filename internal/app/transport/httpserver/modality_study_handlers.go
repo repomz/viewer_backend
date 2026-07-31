@@ -51,6 +51,9 @@ func (h HttpServer) createModalityStudy(
 				return
 			}
 		}
+		if modality == "XA" && h.xaCache != nil {
+			h.xaCache.Enqueue(request.StudyUID)
+		}
 		server.RespondOK(toResponseStudy(existing), w, r)
 		return
 	}
@@ -91,6 +94,9 @@ func (h HttpServer) createModalityStudy(
 		request.StudyUID,
 		len(request.DicomFiles),
 	)
+	if modality == "XA" && h.xaCache != nil {
+		h.xaCache.Enqueue(request.StudyUID)
+	}
 	server.RespondCreated(toResponseStudy(inserted), w, r)
 }
 
