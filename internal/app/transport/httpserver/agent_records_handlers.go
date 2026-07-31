@@ -3,6 +3,7 @@ package httpserver
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +108,7 @@ func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	records = limitAgentRecords(records, query.Get("limit"))
 	response := make([]string, 0, len(records))
 	for _, record := range records {
 		response = append(response, record.Format(time.RFC3339))
@@ -146,10 +148,28 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 		return
 	}
 
+	records = limitAgentRecords(records, query.Get("limit"))
 	response := make([]string, 0, len(records))
 	for _, record := range records {
 		response = append(response, record.Format(time.RFC3339))
 	}
 
 	server.RespondOK(response, w, r)
+}
+
+func limitAgentRecords(records []time.Time, rawLimit string) []time.Time {
+	if strings.TrimSpace(rawLimit) == "" {
+		return records
+	}
+	limit, err := strconv.Atoi(rawLimit)
+	if err != nil || limit < 1 {
+		return records
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if len(records) > limit {
+		return records[:limit]
+	}
+	return records
 }

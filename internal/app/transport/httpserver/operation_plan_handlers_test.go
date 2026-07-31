@@ -50,6 +50,7 @@ func TestOperationPlanRoundTrip(t *testing.T) {
 		t.Fatalf("decode plan: %v", err)
 	}
 	if len(plan.Days) != 5 ||
+		plan.Days[0].Entries == nil ||
 		len(plan.Days[1].Entries) != 1 ||
 		plan.Days[1].Entries[0].Patient != "Петров" {
 		t.Fatalf("unexpected plan: %#v", plan)

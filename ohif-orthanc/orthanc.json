@@ -35,7 +35,18 @@
       "HOSPITAL_AGENT",
       "agent",
       11112
-    ]
+    ],
+    "radiant": {
+      "AET": "RADIANT",
+      "Host": "127.0.0.1",
+      "Port": 11112,
+      "Manufacturer": "Generic",
+      "AllowEcho": true,
+      "AllowFind": true,
+      "AllowGet": true,
+      "AllowMove": false,
+      "AllowStore": false
+    }
   },
   "DicomModalitiesInDatabase": false,
   "DicomScuTimeout": 30,

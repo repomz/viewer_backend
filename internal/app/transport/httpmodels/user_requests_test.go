@@ -47,7 +47,7 @@ func TestOnlyCanonicalAgentCommandsAreAccepted(t *testing.T) {
 
 func TestInteractiveWorkflowCommandsAreAccepted(t *testing.T) {
 	cases := []UserRequestCreateRequest{
-		{UserID: "operator", AgentID: 2, Command: "get_plan"},
+		{UserID: "operator", AgentID: 2, Command: "sync_studies"},
 		{
 			UserID: "operator", AgentID: 2, Command: "import_study",
 			Payload: map[string]any{"protocol_ref": "opaque-reference"},

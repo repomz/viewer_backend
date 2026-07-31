@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -58,6 +59,17 @@ func TestXACachePreparesEveryFrameOnce(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, "1.2.3", "frames", frame.ID)); err != nil {
 			t.Fatalf("cached frame is missing: %v", err)
 		}
+	}
+	if manifest.ArchivePath != "/xa-cache/1.2.3/archive" || manifest.ArchiveBytes <= 0 {
+		t.Fatalf("archive is missing from manifest: %#v", manifest)
+	}
+	archive, err := zip.OpenReader(filepath.Join(root, "1.2.3", "frames.zip"))
+	if err != nil {
+		t.Fatalf("open XA archive: %v", err)
+	}
+	defer archive.Close()
+	if len(archive.File) != 3 {
+		t.Fatalf("archive contains %d frames, expected 3", len(archive.File))
 	}
 
 	// Existing static files are reused during a retry instead of being rendered again.

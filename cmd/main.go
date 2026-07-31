@@ -93,6 +93,9 @@ func run() error {
 	}
 	httpServer.SetXACache(xaCache)
 	go xaCache.WarmExisting(context.Background())
+	retentionCtx, cancelRetention := context.WithCancel(context.Background())
+	defer cancelRetention()
+	go httpServer.StartStudyRetention(retentionCtx)
 
 	// create http router
 	router := mux.NewRouter().StrictSlash(true)
@@ -112,6 +115,7 @@ func run() error {
 	router.HandleFunc("/xa_studies", httpServer.CreateXAStudy).Methods(http.MethodPost)
 	router.HandleFunc("/xa-cache/{study_uid}/manifest", httpServer.GetXACacheManifest).Methods(http.MethodGet)
 	router.HandleFunc("/xa-cache/{study_uid}/prepare", httpServer.PrepareXACache).Methods(http.MethodPost)
+	router.HandleFunc("/xa-cache/{study_uid}/archive", httpServer.GetXACacheArchive).Methods(http.MethodGet)
 	router.HandleFunc("/xa-cache/{study_uid}/frames/{frame_id}", httpServer.GetXACacheFrame).Methods(http.MethodGet)
 	router.HandleFunc("/reports", httpServer.CreateReport).Methods(http.MethodPost)
 	router.HandleFunc("/reports", httpServer.GetReports).Methods(http.MethodGet)

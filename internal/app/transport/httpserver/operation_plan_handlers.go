@@ -128,9 +128,13 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	for offset := 0; offset < 5; offset++ {
 		date := start.AddDate(0, 0, offset).Format("2006-01-02")
+		entries := plan.Days[date]
+		if entries == nil {
+			entries = make([]operationPlanEntry, 0)
+		}
 		response.Days = append(response.Days, operationPlanDay{
 			Date:    date,
-			Entries: plan.Days[date],
+			Entries: entries,
 		})
 	}
 	server.RespondOK(response, w, r)

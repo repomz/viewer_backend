@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -47,12 +48,14 @@ type xaCacheSeries struct {
 }
 
 type xaCacheManifest struct {
-	Status     string          `json:"status"`
-	StudyUID   string          `json:"study_uid"`
-	Prepared   time.Time       `json:"prepared_at"`
-	FrameCount int             `json:"frame_count"`
-	TotalBytes int64           `json:"total_bytes"`
-	Series     []xaCacheSeries `json:"series"`
+	Status       string          `json:"status"`
+	StudyUID     string          `json:"study_uid"`
+	Prepared     time.Time       `json:"prepared_at"`
+	FrameCount   int             `json:"frame_count"`
+	TotalBytes   int64           `json:"total_bytes"`
+	ArchivePath  string          `json:"archive_path,omitempty"`
+	ArchiveBytes int64           `json:"archive_bytes,omitempty"`
+	Series       []xaCacheSeries `json:"series"`
 }
 
 type xaCacheStatus struct {
@@ -137,11 +140,23 @@ func (c *XACache) manifestPath(studyUID string) string {
 	return filepath.Join(c.root, studyUID, "manifest.json")
 }
 
+func (c *XACache) archivePath(studyUID string) string {
+	return filepath.Join(c.root, studyUID, "frames.zip")
+}
+
+func (c *XACache) archiveReady(manifest xaCacheManifest) bool {
+	if manifest.ArchivePath == "" || manifest.ArchiveBytes <= 0 {
+		return false
+	}
+	info, err := os.Stat(c.archivePath(manifest.StudyUID))
+	return err == nil && info.Size() == manifest.ArchiveBytes
+}
+
 func (c *XACache) Enqueue(studyUID string) {
 	if !validStudyUID(studyUID) {
 		return
 	}
-	if _, err := os.Stat(c.manifestPath(studyUID)); err == nil {
+	if manifest, err := c.readManifest(studyUID); err == nil && c.archiveReady(manifest) {
 		c.setStatus(xaCacheStatus{Status: "ready", StudyUID: studyUID})
 		return
 	}
@@ -390,6 +405,13 @@ func (c *XACache) prepare(studyUID string) {
 	manifest.Prepared = time.Now()
 	manifest.FrameCount = status.Prepared
 	manifest.TotalBytes = status.TotalBytes
+	archiveBytes, err := c.writeArchive(manifest)
+	if err != nil {
+		c.fail(studyUID, fmt.Errorf("create XA archive: %w", err))
+		return
+	}
+	manifest.ArchivePath = "/xa-cache/" + studyUID + "/archive"
+	manifest.ArchiveBytes = archiveBytes
 	if err := c.writeManifest(manifest); err != nil {
 		c.fail(studyUID, err)
 		return
@@ -407,6 +429,55 @@ func (c *XACache) prepare(studyUID string) {
 		manifest.FrameCount,
 		manifest.TotalBytes,
 	)
+}
+
+func (c *XACache) writeArchive(manifest xaCacheManifest) (int64, error) {
+	directory := filepath.Join(c.root, manifest.StudyUID)
+	temporary, err := os.CreateTemp(directory, ".frames-*.zip.tmp")
+	if err != nil {
+		return 0, err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+
+	archive := zip.NewWriter(temporary)
+	for _, series := range manifest.Series {
+		for _, frame := range series.Frames {
+			source, openErr := os.Open(filepath.Join(directory, "frames", frame.ID))
+			if openErr != nil {
+				_ = archive.Close()
+				_ = temporary.Close()
+				return 0, openErr
+			}
+			header := &zip.FileHeader{Name: "frames/" + frame.ID, Method: zip.Store}
+			header.SetModTime(manifest.Prepared)
+			destination, createErr := archive.CreateHeader(header)
+			if createErr == nil {
+				_, createErr = io.Copy(destination, source)
+			}
+			_ = source.Close()
+			if createErr != nil {
+				_ = archive.Close()
+				_ = temporary.Close()
+				return 0, createErr
+			}
+		}
+	}
+	if err := archive.Close(); err != nil {
+		_ = temporary.Close()
+		return 0, err
+	}
+	if err := temporary.Close(); err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(temporaryPath)
+	if err != nil {
+		return 0, err
+	}
+	if err := os.Rename(temporaryPath, c.archivePath(manifest.StudyUID)); err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
 }
 
 func framePosition(series xaCacheSeries, source xaFrameSource) int {
@@ -547,7 +618,7 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	manifest, err := h.xaCache.readManifest(studyUID)
-	if err == nil {
+	if err == nil && h.xaCache.archiveReady(manifest) {
 		server.RespondOK(manifest, w, r)
 		return
 	}
@@ -557,6 +628,27 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Retry-After", "2")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(status)
+}
+
+func (h HttpServer) GetXACacheArchive(w http.ResponseWriter, r *http.Request) {
+	if h.xaCache == nil {
+		http.NotFound(w, r)
+		return
+	}
+	studyUID := mux.Vars(r)["study_uid"]
+	if !validStudyUID(studyUID) {
+		http.NotFound(w, r)
+		return
+	}
+	manifest, err := h.xaCache.readManifest(studyUID)
+	if err != nil || !h.xaCache.archiveReady(manifest) {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename=xa-"+studyUID+".zip")
+	http.ServeFile(w, r, h.xaCache.archivePath(studyUID))
 }
 
 func (h HttpServer) PrepareXACache(w http.ResponseWriter, r *http.Request) {

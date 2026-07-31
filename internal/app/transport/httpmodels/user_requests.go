@@ -12,7 +12,7 @@ import (
 
 var allowedAgentCommands = map[string]bool{
 	"get_report":      true,
-	"get_plan":        true,
+	"sync_studies":    true,
 	"find_study":      true,
 	"import_study":    true,
 	"find_xa":         true,
