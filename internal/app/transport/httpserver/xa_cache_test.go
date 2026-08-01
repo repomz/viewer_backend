@@ -2,10 +2,16 @@ package httpserver
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -76,6 +82,62 @@ func TestXACachePreparesEveryFrameOnce(t *testing.T) {
 	cache.prepare("1.2.3")
 	if rendered != 3 {
 		t.Fatalf("retry rendered frames again: %d", rendered)
+	}
+}
+
+func TestXACacheBuildsFastStartCinePerSeries(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	root := t.TempDir()
+	studyUID := "1.2.3"
+	framesDirectory := filepath.Join(root, studyUID, "frames")
+	if err := os.MkdirAll(framesDirectory, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	frames := make([]xaCacheFrame, 0, 3)
+	for index := range 3 {
+		id := fmt.Sprintf("frame-%d.jpg", index+1)
+		file, createErr := os.Create(filepath.Join(framesDirectory, id))
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		picture := image.NewGray(image.Rect(0, 0, 64, 64))
+		for pixel := range picture.Pix {
+			picture.Pix[pixel] = color.Gray{Y: uint8(index * 60)}.Y
+		}
+		if encodeErr := jpeg.Encode(file, picture, &jpeg.Options{Quality: 85}); encodeErr != nil {
+			_ = file.Close()
+			t.Fatal(encodeErr)
+		}
+		_ = file.Close()
+		frames = append(frames, xaCacheFrame{ID: id})
+	}
+	cache := &XACache{root: root, ffmpegPath: ffmpeg}
+	manifest := xaCacheManifest{
+		StudyUID: studyUID,
+		Series: []xaCacheSeries{{
+			SeriesUID: "1.2.3.4",
+			FPS:       12,
+			Frames:    frames,
+		}},
+	}
+	if err := cache.writeCines(&manifest); err != nil {
+		t.Fatalf("write cines: %v", err)
+	}
+	series := manifest.Series[0]
+	if series.CinePath == "" || series.CineBytes <= 0 {
+		t.Fatalf("cine is missing from manifest: %#v", series)
+	}
+	content, err := os.ReadFile(cache.cinePath(studyUID, series.CineID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	moov := bytes.Index(content, []byte("moov"))
+	mdat := bytes.Index(content, []byte("mdat"))
+	if moov < 0 || mdat < 0 || moov > mdat {
+		t.Fatalf("MP4 is not faststart: moov=%d mdat=%d", moov, mdat)
 	}
 }
 

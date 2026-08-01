@@ -122,6 +122,7 @@ services:
       PLANS_DIR: ${PLANS_DIR:-/app/plans}
       XA_CACHE_DIR: ${XA_CACHE_DIR:-/app/xa-cache}
       XA_CACHE_TIMEOUT_SECONDS: ${XA_CACHE_TIMEOUT_SECONDS:-120}
+      XA_CACHE_FFMPEG_PATH: ${XA_CACHE_FFMPEG_PATH:-/usr/bin/ffmpeg}
       REMOTE_PACS_URL: ${REMOTE_PACS_URL:-http://pacs:8042/instances}
       REMOTE_PACS_USERNAME: ${REMOTE_PACS_USERNAME:-mapdr}
       REMOTE_PACS_PASSWORD: ${REMOTE_PACS_PASSWORD:-changestrongpassword}
@@ -191,6 +192,7 @@ services:
       OHIF_URL: http://ohif
     ports:
       - "${BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-5173}:8080"
+      - "${BIND_ADDRESS:-0.0.0.0}:${FRONTEND_HTTP_PORT:-80}:8080"
     depends_on:
       backend:
         condition: service_started

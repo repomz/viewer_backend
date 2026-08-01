@@ -18,7 +18,7 @@ docker compose up -d --build --wait --remove-orphans
 После запуска:
 
 - backend: `http://SERVER:8080`;
-- frontend: `http://SERVER:5173`;
+- frontend: `http://SERVER/` (также сохранён технический порт `5173`);
 - OHIF: `http://SERVER:3000`;
 - Orthanc Explorer: `http://SERVER:8042`;
 - DICOM PACS: AE Title `MAPDR`, порт `4242`;
@@ -30,7 +30,7 @@ docker compose up -d --build --wait --remove-orphans
 заголовке `ohif-orthanc/nginx_ohif.conf`, а HTTP закрыть TLS reverse proxy.
 
 Состояние PostgreSQL, Orthanc, JSON-отчётов, редактируемого плана и
-подготовленных XA-кадров хранится в named volumes. Остановка без удаления
+подготовленных XA-кадров и MP4 cine по сериям хранится в named volumes. Остановка без удаления
 данных:
 
 ```bash

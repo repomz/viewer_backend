@@ -12,7 +12,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +46,10 @@ type xaCacheSeries struct {
 	SeriesUID   string         `json:"series_uid"`
 	Number      int            `json:"number"`
 	Description string         `json:"description,omitempty"`
+	FPS         int            `json:"fps"`
+	CineID      string         `json:"cine_id,omitempty"`
+	CinePath    string         `json:"cine_path,omitempty"`
+	CineBytes   int64          `json:"cine_bytes,omitempty"`
 	Frames      []xaCacheFrame `json:"frames"`
 }
 
@@ -78,6 +84,7 @@ type XACache struct {
 	username   string
 	password   string
 	client     *http.Client
+	ffmpegPath string
 	queue      chan string
 	jobs       map[string]*xaCacheJob
 	jobsMu     sync.RWMutex
@@ -102,13 +109,17 @@ func NewXACacheFromEnvironment() (*XACache, error) {
 		return nil, fmt.Errorf("create XA cache directory: %w", err)
 	}
 	cache := &XACache{
-		root:     root,
-		pacsBase: pacsBase,
-		username: os.Getenv("REMOTE_PACS_USERNAME"),
-		password: os.Getenv("REMOTE_PACS_PASSWORD"),
-		client:   &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
-		queue:    make(chan string, 128),
-		jobs:     make(map[string]*xaCacheJob),
+		root:       root,
+		pacsBase:   pacsBase,
+		username:   os.Getenv("REMOTE_PACS_USERNAME"),
+		password:   os.Getenv("REMOTE_PACS_PASSWORD"),
+		client:     &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
+		ffmpegPath: strings.TrimSpace(os.Getenv("XA_CACHE_FFMPEG_PATH")),
+		queue:      make(chan string, 128),
+		jobs:       make(map[string]*xaCacheJob),
+	}
+	if cache.ffmpegPath == "" {
+		cache.ffmpegPath = "/usr/bin/ffmpeg"
 	}
 	cache.start()
 	return cache, nil
@@ -152,11 +163,35 @@ func (c *XACache) archiveReady(manifest xaCacheManifest) bool {
 	return err == nil && info.Size() == manifest.ArchiveBytes
 }
 
+func (c *XACache) cinePath(studyUID, cineID string) string {
+	return filepath.Join(c.root, studyUID, "cines", cineID)
+}
+
+func (c *XACache) cinesReady(manifest xaCacheManifest) bool {
+	if c.ffmpegPath == "" || len(manifest.Series) == 0 {
+		return c.ffmpegPath == ""
+	}
+	for _, series := range manifest.Series {
+		if series.CineID == "" || series.CinePath == "" || series.CineBytes <= 0 {
+			return false
+		}
+		info, err := os.Stat(c.cinePath(manifest.StudyUID, series.CineID))
+		if err != nil || info.Size() != series.CineBytes {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *XACache) ready(manifest xaCacheManifest) bool {
+	return c.archiveReady(manifest) && c.cinesReady(manifest)
+}
+
 func (c *XACache) Enqueue(studyUID string) {
 	if !validStudyUID(studyUID) {
 		return
 	}
-	if manifest, err := c.readManifest(studyUID); err == nil && c.archiveReady(manifest) {
+	if manifest, err := c.readManifest(studyUID); err == nil && c.ready(manifest) {
 		c.setStatus(xaCacheStatus{Status: "ready", StudyUID: studyUID})
 		return
 	}
@@ -185,7 +220,7 @@ func (c *XACache) setStatus(status xaCacheStatus) {
 }
 
 func (c *XACache) getStatus(studyUID string) xaCacheStatus {
-	if manifest, err := c.readManifest(studyUID); err == nil {
+	if manifest, err := c.readManifest(studyUID); err == nil && c.ready(manifest) {
 		return xaCacheStatus{
 			Status:     "ready",
 			StudyUID:   studyUID,
@@ -275,6 +310,15 @@ func (c *XACache) buildManifest(
 	studyUID string,
 	metadata []map[string]dicomJSONValue,
 ) (xaCacheManifest, []xaFrameSource, error) {
+	sort.SliceStable(metadata, func(left, right int) bool {
+		leftSeries := tagInt(metadata[left], "00200011", left+1)
+		rightSeries := tagInt(metadata[right], "00200011", right+1)
+		if leftSeries != rightSeries {
+			return leftSeries < rightSeries
+		}
+		return tagInt(metadata[left], "00200013", left+1) <
+			tagInt(metadata[right], "00200013", right+1)
+	})
 	manifest := xaCacheManifest{
 		Status:   "ready",
 		StudyUID: studyUID,
@@ -296,6 +340,7 @@ func (c *XACache) buildManifest(
 				SeriesUID:   seriesUID,
 				Number:      tagInt(instance, "00200011", seriesIndex+1),
 				Description: tagString(instance, "0008103E"),
+				FPS:         max(1, tagInt(instance, "00180040", 12)),
 				Frames:      make([]xaCacheFrame, 0),
 			})
 		}
@@ -405,6 +450,10 @@ func (c *XACache) prepare(studyUID string) {
 	manifest.Prepared = time.Now()
 	manifest.FrameCount = status.Prepared
 	manifest.TotalBytes = status.TotalBytes
+	if err := c.writeCines(&manifest); err != nil {
+		c.fail(studyUID, fmt.Errorf("create XA cine: %w", err))
+		return
+	}
 	archiveBytes, err := c.writeArchive(manifest)
 	if err != nil {
 		c.fail(studyUID, fmt.Errorf("create XA archive: %w", err))
@@ -429,6 +478,84 @@ func (c *XACache) prepare(studyUID string) {
 		manifest.FrameCount,
 		manifest.TotalBytes,
 	)
+}
+
+func cineID(seriesUID string) string {
+	digest := sha256.Sum256([]byte(seriesUID))
+	return hex.EncodeToString(digest[:12]) + ".mp4"
+}
+
+func (c *XACache) writeCines(manifest *xaCacheManifest) error {
+	if c.ffmpegPath == "" {
+		return nil
+	}
+	directory := filepath.Join(c.root, manifest.StudyUID)
+	cinesDirectory := filepath.Join(directory, "cines")
+	if err := os.MkdirAll(cinesDirectory, 0o750); err != nil {
+		return err
+	}
+	for seriesIndex := range manifest.Series {
+		series := &manifest.Series[seriesIndex]
+		id := cineID(series.SeriesUID)
+		finalPath := c.cinePath(manifest.StudyUID, id)
+		if info, err := os.Stat(finalPath); err == nil && info.Size() > 0 {
+			series.CineID = id
+			series.CinePath = "/xa-cache/" + manifest.StudyUID + "/series/" + id
+			series.CineBytes = info.Size()
+			continue
+		}
+		sequenceDirectory, err := os.MkdirTemp(directory, ".cine-sequence-*")
+		if err != nil {
+			return err
+		}
+		for frameIndex, frame := range series.Frames {
+			source := filepath.Join(directory, "frames", frame.ID)
+			link := filepath.Join(sequenceDirectory, fmt.Sprintf("%06d.jpg", frameIndex+1))
+			if err := os.Symlink(source, link); err != nil {
+				_ = os.RemoveAll(sequenceDirectory)
+				return err
+			}
+		}
+		temporary, err := os.CreateTemp(cinesDirectory, ".cine-*.mp4.tmp")
+		if err != nil {
+			_ = os.RemoveAll(sequenceDirectory)
+			return err
+		}
+		temporaryPath := temporary.Name()
+		_ = temporary.Close()
+		command := exec.Command(
+			c.ffmpegPath,
+			"-hide_banner", "-loglevel", "error", "-y",
+			"-framerate", strconv.Itoa(series.FPS),
+			"-start_number", "1",
+			"-i", filepath.Join(sequenceDirectory, "%06d.jpg"),
+			"-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+			"-pix_fmt", "yuv420p",
+			"-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+			"-movflags", "+faststart",
+			"-f", "mp4",
+			temporaryPath,
+		)
+		output, commandErr := command.CombinedOutput()
+		_ = os.RemoveAll(sequenceDirectory)
+		if commandErr != nil {
+			_ = os.Remove(temporaryPath)
+			return fmt.Errorf("ffmpeg series %s: %w: %s", series.SeriesUID, commandErr, strings.TrimSpace(string(output)))
+		}
+		info, err := os.Stat(temporaryPath)
+		if err != nil || info.Size() == 0 {
+			_ = os.Remove(temporaryPath)
+			return errors.New("ffmpeg produced an empty XA cine")
+		}
+		if err := os.Rename(temporaryPath, finalPath); err != nil {
+			_ = os.Remove(temporaryPath)
+			return err
+		}
+		series.CineID = id
+		series.CinePath = "/xa-cache/" + manifest.StudyUID + "/series/" + id
+		series.CineBytes = info.Size()
+	}
+	return nil
 }
 
 func (c *XACache) writeArchive(manifest xaCacheManifest) (int64, error) {
@@ -618,7 +745,7 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	manifest, err := h.xaCache.readManifest(studyUID)
-	if err == nil && h.xaCache.archiveReady(manifest) {
+	if err == nil && h.xaCache.ready(manifest) {
 		server.RespondOK(manifest, w, r)
 		return
 	}
@@ -628,6 +755,40 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Retry-After", "2")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(status)
+}
+
+func (h HttpServer) GetXACacheCine(w http.ResponseWriter, r *http.Request) {
+	if h.xaCache == nil {
+		http.NotFound(w, r)
+		return
+	}
+	studyUID := mux.Vars(r)["study_uid"]
+	cineID := mux.Vars(r)["cine_id"]
+	if !validStudyUID(studyUID) ||
+		!strings.HasSuffix(cineID, ".mp4") ||
+		strings.ContainsAny(cineID, `/\`) {
+		http.NotFound(w, r)
+		return
+	}
+	manifest, err := h.xaCache.readManifest(studyUID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	found := false
+	for _, series := range manifest.Series {
+		if series.CineID == cineID && series.CineBytes > 0 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "video/mp4")
+	http.ServeFile(w, r, h.xaCache.cinePath(studyUID, cineID))
 }
 
 func (h HttpServer) GetXACacheArchive(w http.ResponseWriter, r *http.Request) {

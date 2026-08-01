@@ -41,6 +41,8 @@ ENTRYPOINT ["/usr/local/bin/goose", "-dir", "/app/migrations"]
 
 FROM runtime-base AS runtime
 
+RUN apk add --no-cache ffmpeg
+
 COPY --from=build /out/viewer-backend /usr/local/bin/viewer-backend
 COPY internal/sql/migrations /app/migrations
 
