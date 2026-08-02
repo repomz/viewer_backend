@@ -157,7 +157,7 @@ services:
       - "${BIND_ADDRESS:-0.0.0.0}:${ORTHANC_HTTP_PORT:-8042}:8042"
       - "${BIND_ADDRESS:-0.0.0.0}:${ORTHANC_DICOM_PORT:-4242}:4242"
     volumes:
-      - ./ohif-orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
+      - ./orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
       - orthanc-data:/var/lib/orthanc/db
     healthcheck:
       test:
@@ -171,33 +171,20 @@ services:
     networks:
       - pacs
 
-  ohif:
-    image: ohif/viewer:v4.12.51.21579
-    ports:
-      - "${BIND_ADDRESS:-0.0.0.0}:${OHIF_PORT:-3000}:80"
-    volumes:
-      - ./ohif-orthanc/nginx_ohif.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./ohif-orthanc/ohif.js:/usr/share/nginx/html/app-config.js:ro
-    depends_on:
-      pacs:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - pacs
-
   frontend:
     image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.1.0}
     environment:
       BACKEND_URL: http://backend:8080
-      OHIF_URL: http://ohif
+      PACS_URL: http://pacs:8042
+      PACS_AUTHORIZATION: ${PACS_AUTHORIZATION:-Basic bWFwZHI6Y2hhbmdlc3Ryb25ncGFzc3dvcmQ=}
     ports:
       - "${BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-5173}:8080"
       - "${BIND_ADDRESS:-0.0.0.0}:${FRONTEND_HTTP_PORT:-80}:8080"
     depends_on:
       backend:
         condition: service_started
-      ohif:
-        condition: service_started
+      pacs:
+        condition: service_healthy
     restart: unless-stopped
     init: true
     read_only: true

@@ -9,7 +9,7 @@ cd viewer_backend
 cp .env.compose.example .env
 ```
 
-Запуск PostgreSQL, миграций, backend, Orthanc PACS, OHIF и frontend:
+Запуск PostgreSQL, миграций, backend, Orthanc PACS и frontend:
 
 ```bash
 docker compose up -d --build --wait --remove-orphans
@@ -19,15 +19,13 @@ docker compose up -d --build --wait --remove-orphans
 
 - backend: `http://SERVER:8080`;
 - frontend: `http://SERVER/` (также сохранён технический порт `5173`);
-- OHIF: `http://SERVER:3000`;
 - Orthanc Explorer: `http://SERVER:8042`;
 - DICOM PACS: AE Title `MAPDR`, порт `4242`;
 - Orthanc login: `mapdr`, password: `changestrongpassword`.
 
-Пароль задан так же, как в исходном `ohif-orthanc`, чтобы стек запускался
-без дополнительной генерации конфигов. Перед публикацией сервера в интернет
-нужно заменить пароль одновременно в `ohif-orthanc/orthanc.json` и Basic Auth
-заголовке `ohif-orthanc/nginx_ohif.conf`, а HTTP закрыть TLS reverse proxy.
+Перед публикацией сервера в интернет нужно заменить пароль Orthanc в
+`orthanc/orthanc.json`, обновить `PACS_AUTHORIZATION` и закрыть HTTP
+TLS reverse proxy.
 
 Состояние PostgreSQL, Orthanc, JSON-отчётов, редактируемого плана и
 подготовленных XA-кадров и MP4 cine по сериям хранится в named volumes. Остановка без удаления
@@ -52,7 +50,7 @@ docker compose down --volumes
 
 ```bash
 docker compose ps
-docker compose logs -f backend pacs ohif frontend
+docker compose logs -f backend pacs frontend
 ```
 
 После обновления образов XA, уже находящиеся в Orthanc, автоматически

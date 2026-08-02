@@ -82,7 +82,7 @@ esac
 ARCHITECTURE="$(dpkg --print-architecture)"
 readonly ARCHITECTURE
 if [[ "$ARCHITECTURE" != "amd64" ]]; then
-  die "architecture '$ARCHITECTURE' is not supported by the pinned OHIF/Orthanc stack; amd64 is required"
+  die "architecture '$ARCHITECTURE' is not supported by the pinned Orthanc stack; amd64 is required"
 fi
 
 readonly DOCKER_USER="${DOCKER_USER:-${SUDO_USER:-}}"

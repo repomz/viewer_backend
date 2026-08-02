@@ -7,7 +7,7 @@
 - одноразовый контейнер миграций Goose;
 - Viewer Backend;
 - Orthanc PACS;
-- OHIF Viewer.
+- Viewer Frontend с собственным XA-просмотрщиком.
 
 Hospital Agent на сервер не устанавливается. Он работает на больничном
 Windows-компьютере через `pythonw` и подключается к backend и PACS по сети.
@@ -108,7 +108,7 @@ x86_64
 ```
 
 Если сервер имеет `arm64`, не продолжайте установку без отдельной проверки
-совместимости образов Orthanc и старого OHIF.
+совместимости закреплённого образа Orthanc.
 
 ## 2. Первичная подготовка Ubuntu
 
@@ -252,7 +252,6 @@ docker compose version
 |---:|---|---|
 | `22` | SSH | только администраторы |
 | `8080` | Viewer Backend API | больничные агенты и доверенные клиенты |
-| `3000` | OHIF Viewer | пользователи больничной сети |
 | `5173` | Viewer Frontend | пользователи больничной сети |
 | `8042` | Orthanc HTTP/REST | администраторы; backend использует внутреннюю Docker-сеть |
 | `4242` | Orthanc DICOM | только доверенные DICOM-устройства, если нужен DIMSE-импорт |
@@ -344,9 +343,9 @@ POSTGRES_PASSWORD=ВСТАВЬТЕ_СГЕНЕРИРОВАННЫЙ_HEX_ПАРОЛ
 BACKEND_PORT=8080
 ORTHANC_HTTP_PORT=8042
 ORTHANC_DICOM_PORT=4242
-OHIF_PORT=3000
 FRONTEND_PORT=5173
 FRONTEND_HTTP_PORT=80
+PACS_AUTHORIZATION=Basic BASE64_ORTHANC_USER_PASSWORD
 REPORTS_DIR=/app/reports
 
 REMOTE_PACS_URL=http://pacs:8042/instances
@@ -407,8 +406,8 @@ mapdr / changestrongpassword
 Перед подключением реальной больничной сети его необходимо заменить. Пароль
 используется в четырёх местах:
 
-1. `ohif-orthanc/orthanc.json` — `RegisteredUsers`;
-2. `ohif-orthanc/nginx_ohif.conf` — заголовок `Authorization`;
+1. `orthanc/orthanc.json` — `RegisteredUsers`;
+2. `.env` — `PACS_AUTHORIZATION` в формате Basic Base64;
 3. `compose.yaml` — healthcheck сервиса `pacs`.
 4. `.env` — `REMOTE_PACS_PASSWORD` для импорта backend → Orthanc.
 
@@ -436,7 +435,7 @@ proxy_set_header Authorization "Basic ПОЛУЧЕННАЯ_BASE64_СТРОКА";
 Проверьте JSON и Compose:
 
 ```bash
-jq empty ohif-orthanc/orthanc.json
+jq empty orthanc/orthanc.json
 docker compose config --quiet
 ```
 
@@ -457,7 +456,6 @@ postgres
 migrations
 backend
 pacs
-ohif
 frontend
 ```
 
@@ -493,7 +491,6 @@ docker compose ps -a
 - `postgres` — `Up (healthy)`;
 - `backend` — `Up`;
 - `pacs` — `Up (healthy)`;
-- `ohif` — `Up` или `Up (healthy)`;
 - `frontend` — `Up`;
 - `migrations` — `Exited (0)`.
 
@@ -547,12 +544,6 @@ curl --fail --show-error \
   "http://${SERVER_IP}:8042/system" | jq '{Name, Version, DicomAet, DicomPort}'
 ```
 
-OHIF:
-
-```bash
-curl --fail --show-error --head "http://${SERVER_IP}:3000/"
-```
-
 Проверка DICOM-порта:
 
 ```bash
@@ -572,7 +563,7 @@ sudo apt install -y netcat-openbsd
 
 С доверенного компьютера больничной сети проверьте:
 
-- `http://SERVER_IP:3000` — OHIF Viewer;
+- `http://SERVER_IP` или `http://SERVER_IP:5173` — Viewer Frontend;
 - `http://SERVER_IP:8042` — Orthanc;
 - `http://SERVER_IP:8080` — Viewer Backend.
 
@@ -655,14 +646,13 @@ docker compose ps -a
 ```bash
 docker compose logs --tail=200 backend
 docker compose logs --tail=200 pacs
-docker compose logs --tail=200 ohif
 docker compose logs --tail=200 postgres
 ```
 
 Логи в реальном времени:
 
 ```bash
-docker compose logs -f backend pacs ohif
+docker compose logs -f backend pacs frontend
 ```
 
 Перезапуск одного сервиса:
@@ -770,18 +760,18 @@ cat /var/backups/viewer/postgres-ДАТА.dump \
 docker compose up -d --wait backend
 ```
 
-Перед восстановлением Orthanc остановите `ohif` и `pacs`, очистите целевой
+Перед восстановлением Orthanc остановите `frontend` и `pacs`, очистите целевой
 volume и распакуйте архив. Делайте это только на новом или подтверждённо
 восстанавливаемом сервере:
 
 ```bash
-docker compose stop ohif pacs
+docker compose stop frontend pacs
 sudo docker run --rm \
   -v viewer_orthanc-data:/target \
   -v /var/backups/viewer:/backup:ro \
   alpine:3.22 \
   sh -c 'rm -rf /target/* /target/.[!.]* /target/..?*; tar -xzf /backup/orthanc-ДАТА.tar.gz -C /target'
-docker compose up -d --wait pacs ohif
+docker compose up -d --wait pacs frontend
 ```
 
 ## 17. Обновление приложения
@@ -862,7 +852,7 @@ sudo du -sh /var/lib/docker
 - [ ] Порты не опубликованы напрямую в интернет.
 - [ ] Все постоянные сервисы имеют статус `Up`.
 - [ ] Контейнер миграций завершился с `Exited (0)`.
-- [ ] Backend, OHIF, Orthanc и DICOM-порт доступны из больничной сети.
+- [ ] Backend, Viewer Frontend, Orthanc и DICOM-порт доступны из больничной сети.
 - [ ] Hospital Agent отправляет heartbeat.
 - [ ] Настроено регулярное резервное копирование.
 - [ ] Резервные копии хранятся вне основного сервера.
