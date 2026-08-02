@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -272,6 +273,68 @@ func (c *XACache) request(ctx context.Context, method, endpoint string) (*http.R
 		request.SetBasicAuth(c.username, c.password)
 	}
 	return c.client.Do(request)
+}
+
+func (c *XACache) deleteStudy(ctx context.Context, studyUID string) error {
+	payload, err := json.Marshal(map[string]any{
+		"Level": "Study",
+		"Query": map[string]string{"StudyInstanceUID": studyUID},
+	})
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.pacsBase+"/tools/find",
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if c.username != "" || c.password != "" {
+		request.SetBasicAuth(c.username, c.password)
+	}
+	response, err := c.client.Do(request)
+	if err != nil {
+		return fmt.Errorf("find PACS study: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("find PACS study: HTTP %d", response.StatusCode)
+	}
+	var orthancIDs []string
+	if err := json.NewDecoder(response.Body).Decode(&orthancIDs); err != nil {
+		return fmt.Errorf("decode PACS study search: %w", err)
+	}
+	if len(orthancIDs) == 0 {
+		return os.ErrNotExist
+	}
+	for _, orthancID := range orthancIDs {
+		if orthancID == "" || strings.ContainsAny(orthancID, `/\\`) {
+			return errors.New("PACS returned an invalid study identifier")
+		}
+		deleteResponse, err := c.request(
+			ctx,
+			http.MethodDelete,
+			"/studies/"+orthancID,
+		)
+		if err != nil {
+			return fmt.Errorf("delete PACS study: %w", err)
+		}
+		_ = deleteResponse.Body.Close()
+		if deleteResponse.StatusCode < 200 || deleteResponse.StatusCode >= 300 {
+			return fmt.Errorf("delete PACS study: HTTP %d", deleteResponse.StatusCode)
+		}
+	}
+	if err := os.RemoveAll(filepath.Join(c.root, studyUID)); err != nil {
+		return fmt.Errorf("delete XA cache: %w", err)
+	}
+	c.jobsMu.Lock()
+	delete(c.jobs, studyUID)
+	c.jobsMu.Unlock()
+	return nil
 }
 
 func (c *XACache) loadMetadata(
@@ -755,6 +818,27 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Retry-After", "2")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(status)
+}
+
+func (h HttpServer) DeletePACSStudy(w http.ResponseWriter, r *http.Request) {
+	if h.xaCache == nil {
+		http.Error(w, "PACS integration is disabled", http.StatusServiceUnavailable)
+		return
+	}
+	studyUID := mux.Vars(r)["study_uid"]
+	if !validStudyUID(studyUID) {
+		server.BadRequest("invalid-study-uid", errors.New("invalid StudyInstanceUID"), w, r)
+		return
+	}
+	if err := h.xaCache.deleteStudy(r.Context(), studyUID); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, "PACS study not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	server.RespondOK(map[string]string{"study_uid": studyUID, "status": "deleted"}, w, r)
 }
 
 func (h HttpServer) GetXACacheCine(w http.ResponseWriter, r *http.Request) {

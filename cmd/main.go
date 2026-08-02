@@ -118,6 +118,7 @@ func run() error {
 	router.HandleFunc("/xa-cache/{study_uid}/archive", httpServer.GetXACacheArchive).Methods(http.MethodGet)
 	router.HandleFunc("/xa-cache/{study_uid}/series/{cine_id}", httpServer.GetXACacheCine).Methods(http.MethodGet)
 	router.HandleFunc("/xa-cache/{study_uid}/frames/{frame_id}", httpServer.GetXACacheFrame).Methods(http.MethodGet)
+	router.HandleFunc("/pacs/studies/{study_uid}", httpServer.DeletePACSStudy).Methods(http.MethodDelete)
 	router.HandleFunc("/reports", httpServer.CreateReport).Methods(http.MethodPost)
 	router.HandleFunc("/reports", httpServer.GetReports).Methods(http.MethodGet)
 	router.HandleFunc("/reports/{filename}", httpServer.GetReport).Methods(http.MethodGet)

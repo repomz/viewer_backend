@@ -3,6 +3,7 @@ package httpserver
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -82,6 +83,64 @@ func TestXACachePreparesEveryFrameOnce(t *testing.T) {
 	cache.prepare("1.2.3")
 	if rendered != 3 {
 		t.Fatalf("retry rendered frames again: %d", rendered)
+	}
+}
+
+func TestXACacheDeletesStudyFromOrthancAndLocalCache(t *testing.T) {
+	const studyUID = "1.2.840.113619.2.55"
+	var deleted bool
+	orthanc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/tools/find":
+			if r.Method != http.MethodPost {
+				t.Fatalf("find method = %s", r.Method)
+			}
+			var payload struct {
+				Level string            `json:"Level"`
+				Query map[string]string `json:"Query"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode find request: %v", err)
+			}
+			if payload.Level != "Study" || payload.Query["StudyInstanceUID"] != studyUID {
+				t.Fatalf("unexpected find request: %#v", payload)
+			}
+			_ = json.NewEncoder(w).Encode([]string{"orthanc-study-id"})
+		case "/studies/orthanc-study-id":
+			if r.Method != http.MethodDelete {
+				t.Fatalf("delete method = %s", r.Method)
+			}
+			deleted = true
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer orthanc.Close()
+
+	root := t.TempDir()
+	cache := &XACache{
+		root:     root,
+		pacsBase: orthanc.URL,
+		client:   orthanc.Client(),
+		jobs:     make(map[string]*xaCacheJob),
+	}
+	cacheDir := filepath.Join(root, studyUID)
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cacheDir, "manifest.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cache.deleteStudy(context.Background(), studyUID); err != nil {
+		t.Fatalf("delete study: %v", err)
+	}
+	if !deleted {
+		t.Fatal("Orthanc study was not deleted")
+	}
+	if _, err := os.Stat(cacheDir); !os.IsNotExist(err) {
+		t.Fatalf("cache directory still exists: %v", err)
 	}
 }
 
