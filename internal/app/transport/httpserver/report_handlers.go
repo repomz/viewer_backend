@@ -77,10 +77,18 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	directory := reportsDirectory()
-	if err := os.MkdirAll(directory, 0o750); err != nil {
+	filename, err := storeReport(request)
+	if err != nil {
 		server.InternalError("report-storage", err, w, r)
 		return
+	}
+	server.RespondCreated(map[string]any{"filename": filename}, w, r)
+}
+
+func storeReport(request reportRequest) (string, error) {
+	directory := reportsDirectory()
+	if err := os.MkdirAll(directory, 0o750); err != nil {
+		return "", err
 	}
 	filename := fmt.Sprintf(
 		"report_agent_%d_%s.json",
@@ -90,8 +98,7 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(directory, filename)
 	body, err := json.MarshalIndent(request, "", "  ")
 	if err != nil {
-		server.BadRequest("invalid-report", err, w, r)
-		return
+		return "", err
 	}
 	identity := reportIdentity(request.AgentID, request.Report)
 	replacedReports := make([]string, 0)
@@ -109,8 +116,7 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 	}
 	temporary, err := os.CreateTemp(directory, ".report-*.tmp")
 	if err != nil {
-		server.InternalError("report-storage", err, w, r)
-		return
+		return "", err
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
@@ -125,15 +131,36 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 		err = os.Rename(temporaryPath, path)
 	}
 	if err != nil {
-		server.InternalError("report-storage", err, w, r)
-		return
+		return "", err
 	}
 	for _, replaced := range replacedReports {
 		if replaced != filename {
 			_ = os.Remove(filepath.Join(directory, replaced))
 		}
 	}
-	server.RespondCreated(map[string]any{"filename": filename}, w, r)
+	return filename, nil
+}
+
+func (h HttpServer) GenerateReport(w http.ResponseWriter, r *http.Request) {
+	var request reportGenerateRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		server.BadRequest("invalid-json", err, w, r)
+		return
+	}
+	now := time.Now()
+	if _, _, _, err := reportPeriod(request, now); err != nil {
+		server.BadRequest("report-period", err, w, r)
+		return
+	}
+	document, filename, err := h.generateAndStoreReport(r.Context(), request, now)
+	if err != nil {
+		server.InternalError("report-generation", err, w, r)
+		return
+	}
+	server.RespondCreated(map[string]any{
+		"filename": filename, "agent_id": document.AgentID,
+		"generated_at": document.GeneratedAt, "report": document.Report,
+	}, w, r)
 }
 
 func (h HttpServer) GetReports(w http.ResponseWriter, r *http.Request) {

@@ -13,13 +13,14 @@ import (
 
 type studyServiceStub struct {
 	created domain.Study
+	studies []domain.Study
 	limit   int
 	offset  int
 }
 
 func (s *studyServiceStub) GetAllStudies(_ context.Context, limit, offset int) ([]domain.Study, error) {
 	s.limit, s.offset = limit, offset
-	return []domain.Study{}, nil
+	return s.studies, nil
 }
 
 func (s *studyServiceStub) GetStudiesByFilter(context.Context, domain.StudyFilter) ([]domain.Study, error) {

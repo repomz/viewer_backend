@@ -11,7 +11,6 @@ import (
 )
 
 var allowedAgentCommands = map[string]bool{
-	"get_report":      true,
 	"sync_studies":    true,
 	"find_study":      true,
 	"import_study":    true,
@@ -68,16 +67,6 @@ func (r *UserRequestCreateRequest) Validate() error {
 		if strings.TrimSpace(stringValue(r.Payload["patient"])) == "" &&
 			strings.TrimSpace(stringValue(r.Payload["patient_name"])) == "" {
 			return fmt.Errorf("%w: payload.patient", domain.ErrRequired)
-		}
-	case "get_report":
-		if value, exists := r.Payload["period"]; exists {
-			period, valid := integerValue(value)
-			if !valid || period < 1 || period > 4 {
-				return fmt.Errorf(
-					"%w: payload.period must be an integer between 1 and 4",
-					domain.ErrInvalidRequest,
-				)
-			}
 		}
 	}
 	if r.MaxAttempts == 0 {
@@ -139,23 +128,4 @@ func stringValue(value any) string {
 		return ""
 	}
 	return fmt.Sprint(value)
-}
-
-func integerValue(value any) (int64, bool) {
-	switch typed := value.(type) {
-	case float64:
-		converted := int64(typed)
-		return converted, float64(converted) == typed
-	case int:
-		return int64(typed), true
-	case int32:
-		return int64(typed), true
-	case int64:
-		return typed, true
-	case json.Number:
-		converted, err := typed.Int64()
-		return converted, err == nil
-	default:
-		return 0, false
-	}
 }

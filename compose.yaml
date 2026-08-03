@@ -119,6 +119,7 @@ services:
       HTTP_ADDR: :8080
       TZ: ${TZ:-Asia/Tomsk}
       REPORTS_DIR: ${REPORTS_DIR:-/app/reports}
+      REPORT_AGENT_ID: ${REPORT_AGENT_ID:-2}
       PLANS_DIR: ${PLANS_DIR:-/app/plans}
       XA_CACHE_DIR: ${XA_CACHE_DIR:-/app/xa-cache}
       XA_CACHE_TIMEOUT_SECONDS: ${XA_CACHE_TIMEOUT_SECONDS:-120}
