@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -164,6 +165,14 @@ func TestReportsAreStoredAndReturned(t *testing.T) {
 		t.Fatalf("status = %d; body=%s", listRecorder.Code, listRecorder.Body)
 	}
 
+	filteredRequest := httptest.NewRequest(http.MethodGet, "/reports?agent_id=1", nil)
+	filteredRecorder := httptest.NewRecorder()
+	handler.GetReports(filteredRecorder, filteredRequest)
+	if filteredRecorder.Code != http.StatusOK ||
+		strings.TrimSpace(filteredRecorder.Body.String()) != `[]` {
+		t.Fatalf("filtered status = %d; body=%s", filteredRecorder.Code, filteredRecorder.Body)
+	}
+
 	deleteRequest := httptest.NewRequest(http.MethodDelete, "/reports/"+entries[0].Name(), nil)
 	deleteRequest = mux.SetURLVars(deleteRequest, map[string]string{
 		"filename": entries[0].Name(),
@@ -195,5 +204,39 @@ func TestReportRejectsInvalidGeneratedAt(t *testing.T) {
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+}
+
+func TestCreateReportReplacesSameAgentAndDutyPeriod(t *testing.T) {
+	directory := t.TempDir()
+	t.Setenv("REPORTS_DIR", directory)
+	handler := NewHttpServer(nil, nil, nil)
+
+	for _, emergencyTotal := range []int{6, 10} {
+		body, _ := json.Marshal(map[string]any{
+			"agent_id":     2,
+			"generated_at": "2026-08-03T08:00:00Z",
+			"report": map[string]any{
+				"date":            "03.08.2026",
+				"period_start":    "31.07.2026 08:00",
+				"period_end":      "03.08.2026 08:00",
+				"emergency_total": emergencyTotal,
+			},
+		})
+		request := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(body))
+		recorder := httptest.NewRecorder()
+		handler.CreateReport(recorder, request)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body)
+		}
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("reports = %v, err=%v", entries, err)
+	}
+	body, err := os.ReadFile(filepath.Join(directory, entries[0].Name()))
+	if err != nil || !bytes.Contains(body, []byte(`"emergency_total": 10`)) {
+		t.Fatalf("stored report = %s, err=%v", body, err)
 	}
 }

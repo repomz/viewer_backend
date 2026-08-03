@@ -21,6 +21,36 @@ type reportRequest struct {
 	GeneratedAt string         `json:"generated_at"`
 }
 
+func reportIdentity(agentID int32, report map[string]any) string {
+	periodStart := strings.TrimSpace(fmt.Sprint(report["period_start"]))
+	periodEnd := strings.TrimSpace(fmt.Sprint(report["period_end"]))
+	if periodStart != "" && periodStart != "<nil>" && periodEnd != "" && periodEnd != "<nil>" {
+		return fmt.Sprintf("%d|%s|%s", agentID, periodStart, periodEnd)
+	}
+	date := strings.TrimSpace(fmt.Sprint(report["date"]))
+	if date != "" && date != "<nil>" {
+		return fmt.Sprintf("%d|%s", agentID, date)
+	}
+	return ""
+}
+
+func storedReportIdentity(body []byte) string {
+	var stored reportRequest
+	if json.Unmarshal(body, &stored) != nil {
+		return ""
+	}
+	return reportIdentity(stored.AgentID, stored.Report)
+}
+
+func storedReportAgentID(report any) int {
+	object, ok := report.(map[string]any)
+	if !ok {
+		return 0
+	}
+	value, _ := strconv.Atoi(strings.TrimSuffix(fmt.Sprint(object["agent_id"]), ".0"))
+	return value
+}
+
 func reportsDirectory() string {
 	if configured := strings.TrimSpace(os.Getenv("REPORTS_DIR")); configured != "" {
 		return configured
@@ -63,6 +93,20 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 		server.BadRequest("invalid-report", err, w, r)
 		return
 	}
+	identity := reportIdentity(request.AgentID, request.Report)
+	replacedReports := make([]string, 0)
+	if identity != "" {
+		entries, _ := os.ReadDir(directory)
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+				continue
+			}
+			stored, readErr := os.ReadFile(filepath.Join(directory, entry.Name()))
+			if readErr == nil && storedReportIdentity(stored) == identity {
+				replacedReports = append(replacedReports, entry.Name())
+			}
+		}
+	}
 	temporary, err := os.CreateTemp(directory, ".report-*.tmp")
 	if err != nil {
 		server.InternalError("report-storage", err, w, r)
@@ -84,6 +128,11 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 		server.InternalError("report-storage", err, w, r)
 		return
 	}
+	for _, replaced := range replacedReports {
+		if replaced != filename {
+			_ = os.Remove(filepath.Join(directory, replaced))
+		}
+	}
 	server.RespondCreated(map[string]any{"filename": filename}, w, r)
 }
 
@@ -102,7 +151,9 @@ func (h HttpServer) GetReports(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
+	agentID, _ := strconv.Atoi(r.URL.Query().Get("agent_id"))
 	reports := make([]any, 0, min(limit, len(entries)))
+	seen := make(map[string]bool)
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -114,12 +165,22 @@ func (h HttpServer) GetReports(w http.ResponseWriter, r *http.Request) {
 		var report any
 		if json.Unmarshal(body, &report) == nil {
 			if object, ok := report.(map[string]any); ok {
+				identity := storedReportIdentity(body)
+				if identity != "" && seen[identity] {
+					continue
+				}
+				if identity != "" {
+					seen[identity] = true
+				}
 				object["filename"] = entry.Name()
 			} else {
 				report = map[string]any{
 					"filename": entry.Name(),
 					"report":   report,
 				}
+			}
+			if agentID > 0 && storedReportAgentID(report) != agentID {
+				continue
 			}
 			reports = append(reports, report)
 		}
