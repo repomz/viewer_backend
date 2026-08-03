@@ -30,7 +30,7 @@ func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T
 		OperationTypes:  []string{"стент_кор"},
 		IncludedStudies: []string{manualKAG.String()},
 		ExcludedStudies: []string{stentExcluded.String()},
-	})
+	}, 2026)
 
 	if len(result.OperationTypes) != 2 || len(result.VMPPatients) != 2 {
 		t.Fatalf("unexpected statistics: %#v", result)
@@ -40,6 +40,21 @@ func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T
 	}
 	if result.Surgeons[1].Surgeon != "Старков" || result.Surgeons[1].VMP != 1 {
 		t.Fatalf("unexpected second surgeon row: %#v", result.Surgeons[1])
+	}
+}
+
+func TestBuildOperationStatisticsOnlyCountsRequestedYear(t *testing.T) {
+	current := statisticsStudy(uuid.New(), "Иванов", "каг", "Идрисов")
+	old := domain.ResponseToDBStudy(domain.DBStudyData{
+		ID: uuid.New(), StudyID: uuid.NewString(), Patient: "Петров",
+		NameOperation: "каг", StudyType: "каг", Surgeon: "Идрисов",
+		TimeBeginning: time.Date(2025, 8, 3, 10, 0, 0, 0, time.Local),
+	})
+	result := (HttpServer{}).buildOperationStatistics(
+		[]domain.Study{current, old}, vmpStatisticsConfig{}, 2026,
+	)
+	if len(result.Surgeons) != 1 || result.Surgeons[0].Total != 1 {
+		t.Fatalf("unexpected yearly statistics: %#v", result)
 	}
 }
 

@@ -128,6 +128,8 @@ func run() error {
 	router.HandleFunc("/operation-plan/{date}", httpServer.PutOperationPlanDay).Methods(http.MethodPut)
 	router.HandleFunc("/statistics/operations", httpServer.GetOperationStatistics).Methods(http.MethodGet)
 	router.HandleFunc("/statistics/vmp", httpServer.PutVMPStatisticsConfig).Methods(http.MethodPut)
+	router.HandleFunc("/statistics/history", httpServer.GetHistoricalStatistics).Methods(http.MethodGet)
+	router.HandleFunc("/statistics/history", httpServer.PutHistoricalStatistics).Methods(http.MethodPut)
 
 	// Backward-compatible singular routes.
 	router.HandleFunc("/study/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)

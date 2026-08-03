@@ -6,8 +6,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
 func TestOperationPlanRoundTrip(t *testing.T) {
@@ -54,5 +57,35 @@ func TestOperationPlanRoundTrip(t *testing.T) {
 		len(plan.Days[1].Entries) != 1 ||
 		plan.Days[1].Entries[0].Patient != "Петров" {
 		t.Fatalf("unexpected plan: %#v", plan)
+	}
+}
+
+func TestPlanPatientMatchesSurnameOrFullName(t *testing.T) {
+	if !planPatientMatches("Иванов", "Иванов Иван Иванович") {
+		t.Fatal("surname must match the first protocol name component")
+	}
+	if !planPatientMatches("Иванов Иван Иванович", "Иванов Иван Иванович") {
+		t.Fatal("full name must match exactly")
+	}
+	if planPatientMatches("Иванов Иван", "Иванов Иван Иванович") {
+		t.Fatal("partial full name must not match")
+	}
+}
+
+func TestLatestPlanProtocolUsesCurrentYearLatestStudy(t *testing.T) {
+	makeStudy := func(patient string, date time.Time) domain.Study {
+		return domain.ResponseToDBStudy(domain.DBStudyData{
+			ID: uuid.New(), StudyID: uuid.NewString(), Patient: patient,
+			StudyType: "каг", NameOperation: "КАГ", TimeBeginning: date,
+		})
+	}
+	studies := []domain.Study{
+		makeStudy("Иванов Иван Иванович", time.Date(2025, 12, 31, 10, 0, 0, 0, time.Local)),
+		makeStudy("Иванов Иван Иванович", time.Date(2026, 2, 1, 10, 0, 0, 0, time.Local)),
+		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 1, 10, 0, 0, 0, time.Local)),
+	}
+	result := latestPlanProtocol(operationPlanEntry{Patient: "Иванов"}, studies, 2026)
+	if result == nil || result.TimeBeginning.Month() != time.July {
+		t.Fatalf("unexpected latest protocol: %#v", result)
 	}
 }

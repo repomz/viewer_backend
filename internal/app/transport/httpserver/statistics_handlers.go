@@ -157,7 +157,7 @@ func stringSet(values []string) map[string]bool {
 	return result
 }
 
-func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpStatisticsConfig) operationStatisticsResponse {
+func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpStatisticsConfig, year int) operationStatisticsResponse {
 	typeTotals := make(map[string]int)
 	surgeons := make(map[string]*surgeonStatistics)
 	vmpTypes := stringSet(config.OperationTypes)
@@ -167,6 +167,10 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 
 	for _, study := range studies {
 		if !isProtocolStudy(study) {
+			continue
+		}
+		beginning := study.TimeBeginning()
+		if !beginning.Valid || beginning.Time.In(time.Local).Year() != year {
 			continue
 		}
 		typeID := statisticsOperationTypeID(study)
@@ -224,7 +228,7 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 }
 
 func (h HttpServer) GetOperationStatistics(w http.ResponseWriter, r *http.Request) {
-	studies, err := h.studyService.GetAllStudies(r.Context(), 5000, 0)
+	studies, err := loadStudiesForAnalysis(r.Context(), h.studyService)
 	if err != nil {
 		server.InternalError("statistics-studies", err, w, r)
 		return
@@ -236,7 +240,7 @@ func (h HttpServer) GetOperationStatistics(w http.ResponseWriter, r *http.Reques
 		server.InternalError("statistics-config", err, w, r)
 		return
 	}
-	server.RespondOK(h.buildOperationStatistics(studies, config), w, r)
+	server.RespondOK(h.buildOperationStatistics(studies, config, time.Now().In(time.Local).Year()), w, r)
 }
 
 func (h HttpServer) PutVMPStatisticsConfig(w http.ResponseWriter, r *http.Request) {
