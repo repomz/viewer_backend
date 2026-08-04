@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Viewer IP TLS certificate renewal twice daily
+
+[Timer]
+OnCalendar=*-*-* 03,15:20:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
