@@ -132,6 +132,12 @@ func planPatientMatches(planPatient, protocolPatient string) bool {
 	if planValue == protocolValue {
 		return true
 	}
+	// The plan is commonly filled with a surname only. The operation date is
+	// checked separately by planProtocols, so an exact surname is sufficient
+	// to link the protocol completed on that day.
+	if len(planParts) == 1 && len(protocolParts) >= 1 {
+		return planParts[0] == protocolParts[0]
+	}
 	// A surname with initials is an exact-enough representation of a full FIO.
 	if len(planParts) == 3 && len(protocolParts) >= 3 && planParts[0] == protocolParts[0] {
 		return strings.HasPrefix(protocolParts[1], planParts[1]) && strings.HasPrefix(protocolParts[2], planParts[2])
