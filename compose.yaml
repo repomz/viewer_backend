@@ -173,7 +173,7 @@ services:
       - pacs
 
   frontend:
-    image: ${FRONTEND_IMAGE:-ghcr.io/repomz/viewer_frontend:0.2.0}
+    image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.2.0}
     environment:
       BACKEND_URL: http://backend:8080
       PACS_URL: http://pacs:8042
