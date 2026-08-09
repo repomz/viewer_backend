@@ -137,16 +137,73 @@ func normalizeOperationTypes(values []string) []string {
 	return normalizeStringSet(values)
 }
 
-func statisticsOperationTypeID(study domain.Study) string {
-	value := strings.ToLower(strings.TrimSpace(study.StudyType()))
-	if value == "" {
-		value = "другие"
-	}
-	return strings.Join(strings.Fields(value), "_")
+var statisticsOperationTypes = []statisticsOperationType{
+	{ID: "vzuzi", Label: "ВСУЗИ"},
+	{ID: "kag", Label: "КАГ"},
+	{ID: "tsag", Label: "ЦАГ"},
+	{ID: "stent_cor", Label: "СТЕНТ КОР"},
+	{ID: "stent_vzuzi", Label: "СТЕНТ + ВСУЗИ"},
+	{ID: "bap_cor", Label: "БАП КОР"},
+	{ID: "stent_vsa", Label: "СТЕНТ ВСА"},
+	{ID: "stent_upper", Label: "СТЕНТ В/К"},
+	{ID: "stent_lower", Label: "СТЕНТ Н/К"},
+	{ID: "aneurysm", Label: "АНЕВРИЗМА"},
+	{ID: "stroke", Label: "ИНСУЛЬТ"},
+	{ID: "bap_shin", Label: "БАП ГОЛЕНЬ"},
 }
 
-func statisticsOperationTypeLabel(value string) string {
-	return strings.ToUpper(strings.ReplaceAll(value, "_", " "))
+func containsAny(value string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(value, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func statisticsOperationTypeIDs(study domain.Study) []string {
+	text := strings.ToLower(strings.ReplaceAll(strings.Join([]string{
+		study.StudyType(), study.NameOperation(), study.DescrOperation(),
+	}, " "), "ё", "е"))
+	stent := containsAny(text, "стент", "чкв")
+	vzuzi := containsAny(text, "всузи", "внутрисосудист")
+	coronary := containsAny(text, "коронар", "каг", "чкв", "стент_кор", "бап_кор")
+	tags := make([]string, 0, 3)
+	if vzuzi {
+		tags = append(tags, "vzuzi")
+	}
+	if stent && coronary {
+		tags = append(tags, "stent_cor")
+		if vzuzi {
+			tags = append(tags, "stent_vzuzi")
+		}
+	} else if coronary && containsAny(text, "баллон", "бап") {
+		tags = append(tags, "bap_cor")
+	} else if containsAny(text, "каг", "коронарограф") {
+		tags = append(tags, "kag")
+	}
+	if !stent && containsAny(text, "цаг", "церебраль", "ангиограф") && containsAny(text, "бца", "церебраль", "цаг") {
+		tags = append(tags, "tsag")
+	}
+	if stent && containsAny(text, "вса", "каротид", "сонн") {
+		tags = append(tags, "stent_vsa")
+	}
+	if stent && containsAny(text, "верхн", "подключ") {
+		tags = append(tags, "stent_upper")
+	}
+	if stent && containsAny(text, "нижн", "опа", "нпа", "бедрен", "подкол") {
+		tags = append(tags, "stent_lower")
+	}
+	if containsAny(text, "эмболизац") && containsAny(text, "аневризм") {
+		tags = append(tags, "aneurysm")
+	}
+	if containsAny(text, "тромбаспирац", "тромбэкстракц", "тромбэктом") && containsAny(text, "сма", "пма", "зма", "базиляр", "вса", "инсульт") {
+		tags = append(tags, "stroke")
+	}
+	if containsAny(text, "бап голен", "баллонная ангиопластика голен") {
+		tags = append(tags, "bap_shin")
+	}
+	return normalizeStringSet(tags)
 }
 
 func stringSet(values []string) map[string]bool {
@@ -173,8 +230,7 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 		if !beginning.Valid || beginning.Time.In(time.Local).Year() != year {
 			continue
 		}
-		typeID := statisticsOperationTypeID(study)
-		typeTotals[typeID]++
+		typeIDs := statisticsOperationTypeIDs(study)
 		surgeonLabel := strings.TrimSpace(study.Surgeon())
 		if surgeonLabel == "" {
 			surgeonLabel = "Не указан"
@@ -185,11 +241,21 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 			row = &surgeonStatistics{Surgeon: surgeonLabel, Counts: make(map[string]int)}
 			surgeons[surgeonKey] = row
 		}
-		row.Counts[typeID]++
+		for _, typeID := range typeIDs {
+			typeTotals[typeID]++
+			row.Counts[typeID]++
+		}
 		row.Total++
 
 		studyID := study.ID().String()
-		isVMP := !excluded[studyID] && (vmpTypes[typeID] || included[studyID])
+		matchedVMPType := ""
+		for _, typeID := range typeIDs {
+			if vmpTypes[typeID] {
+				matchedVMPType = typeID
+				break
+			}
+		}
+		isVMP := !excluded[studyID] && (matchedVMPType != "" || included[studyID])
 		if !isVMP {
 			continue
 		}
@@ -204,15 +270,15 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 		}
 		vmpPatients = append(vmpPatients, vmpPatient{
 			StudyID: studyID, Patient: study.Patient(), Operation: study.NameOperation(),
-			OperationType: typeID, Surgeon: study.Surgeon(), Date: date, Source: source,
+			OperationType: matchedVMPType, Surgeon: study.Surgeon(), Date: date, Source: source,
 		})
 	}
 
-	types := make([]statisticsOperationType, 0, len(typeTotals))
-	for id, total := range typeTotals {
-		types = append(types, statisticsOperationType{ID: id, Label: statisticsOperationTypeLabel(id), Total: total})
+	types := make([]statisticsOperationType, 0, len(statisticsOperationTypes))
+	for _, operationType := range statisticsOperationTypes {
+		operationType.Total = typeTotals[operationType.ID]
+		types = append(types, operationType)
 	}
-	sort.Slice(types, func(i, j int) bool { return types[i].Label < types[j].Label })
 	rows := make([]surgeonStatistics, 0, len(surgeons))
 	for _, row := range surgeons {
 		rows = append(rows, *row)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/domain"
@@ -53,6 +54,10 @@ func (s StudyService) DeleteAllStudies(ctx context.Context) error {
 
 func (s StudyService) GetAllStudies(ctx context.Context, limit, offset int) ([]domain.Study, error) {
 	return s.repo.GetAllStudies(ctx, limit, offset)
+}
+
+func (s StudyService) GetProtocolStudiesSince(ctx context.Context, since time.Time, limit, offset int) ([]domain.Study, error) {
+	return s.repo.GetProtocolStudiesSince(ctx, since, limit, offset)
 }
 
 func (s StudyService) GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error) {

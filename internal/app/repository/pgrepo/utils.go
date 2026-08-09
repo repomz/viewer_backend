@@ -24,6 +24,7 @@ func domainToDBStudyParams(study domain.Study) db.CreateStudyParams {
 		NameOperation:  study.NameOperation(),
 		StudyType:      study.StudyType(),
 		DescrOperation: study.DescrOperation(),
+		Recommendation: study.Recommendation(),
 		TimeBeginning:  study.TimeBeginning(),
 		TimeDuration:   study.TimeDuration(),
 		Surgeon:        study.Surgeon(),

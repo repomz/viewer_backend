@@ -18,6 +18,7 @@ type Study struct {
 	nameOperation  string
 	studyType      string
 	descrOperation string
+	recommendation string
 	timeBeginning  time.Time
 	timeDuration   int32
 	surgeon        string
@@ -35,6 +36,7 @@ type DBStudyData struct {
 	NameOperation  string
 	StudyType      string
 	DescrOperation string
+	Recommendation string
 	TimeBeginning  time.Time
 	TimeDuration   int32
 	Surgeon        string
@@ -56,6 +58,7 @@ func ResponseToDBStudy(data DBStudyData) Study {
 		nameOperation:  data.NameOperation,
 		studyType:      data.StudyType,
 		descrOperation: data.DescrOperation,
+		recommendation: data.Recommendation,
 		timeBeginning:  data.TimeBeginning,
 		timeDuration:   data.TimeDuration,
 		surgeon:        data.Surgeon,
@@ -76,6 +79,7 @@ func DBToNewStudy(data db.Study) (Study, error) {
 		nameOperation:  data.NameOperation,
 		studyType:      data.StudyType,
 		descrOperation: data.DescrOperation,
+		recommendation: data.Recommendation,
 		timeBeginning:  data.TimeBeginning.Time,
 		timeDuration:   data.TimeDuration.Int32,
 		surgeon:        data.Surgeon,
@@ -125,6 +129,10 @@ func (b Study) StudyType() string {
 
 func (b Study) DescrOperation() string {
 	return b.descrOperation
+}
+
+func (b Study) Recommendation() string {
+	return b.recommendation
 }
 
 func (b Study) TimeBeginning() sql.NullTime {

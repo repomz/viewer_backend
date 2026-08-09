@@ -28,7 +28,7 @@ services:
       - application
 
   migrations:
-    image: ${BACKEND_MIGRATIONS_IMAGE:-idrisovmarat/viewer_backend-migrations:0.1.0}
+    image: ${BACKEND_MIGRATIONS_IMAGE:-idrisovmarat/viewer_backend-migrations:0.2.0}
     build:
       context: .
       dockerfile: Dockerfile
@@ -106,7 +106,7 @@ services:
     restart: "no"
 
   backend:
-    image: ${BACKEND_IMAGE:-idrisovmarat/viewer_backend:0.1.0}
+    image: ${BACKEND_IMAGE:-idrisovmarat/viewer_backend:0.2.0}
     build:
       context: .
       dockerfile: Dockerfile
@@ -173,7 +173,7 @@ services:
       - pacs
 
   frontend:
-    image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.1.0}
+    image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.2.0}
     environment:
       BACKEND_URL: http://backend:8080
       PACS_URL: http://pacs:8042

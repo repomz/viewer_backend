@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/db"
@@ -42,6 +43,24 @@ func (s StudyRepo) GetAllStudies(ctx context.Context, limit, offset int) ([]doma
 	}
 
 	return domainStudies, nil
+}
+
+func (s StudyRepo) GetProtocolStudiesSince(ctx context.Context, since time.Time, limit, offset int) ([]domain.Study, error) {
+	studies, err := s.query.GetProtocolStudiesSince(ctx, db.GetProtocolStudiesSinceParams{
+		TimeBeginning: sql.NullTime{Time: since, Valid: true},
+		Limit:         int32(limit), Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current protocol studies: %w", err)
+	}
+	result := make([]domain.Study, len(studies))
+	for index, study := range studies {
+		result[index], err = dbStudyToDomain(study)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create domain study: %w", err)
+		}
+	}
+	return result, nil
 }
 
 func (s StudyRepo) GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error) {

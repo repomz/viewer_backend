@@ -17,6 +17,7 @@ type StudyRequest struct {
 	NameOperation  string    `json:"name_operation"`
 	StudyType      string    `json:"study_type"`
 	DescrOperation string    `json:"descr_operation"`
+	Recommendation string    `json:"recommendation"`
 	TimeBeginning  time.Time `json:"time_beginning"`
 	TimeDuration   int32     `json:"time_duration"`
 	Surgeon        string    `json:"surgeon"`
@@ -30,6 +31,7 @@ func (s *StudyRequest) Validate() error {
 	s.NameOperation = strings.TrimSpace(s.NameOperation)
 	s.StudyType = strings.ToLower(strings.TrimSpace(s.StudyType))
 	s.DescrOperation = strings.TrimSpace(s.DescrOperation)
+	s.Recommendation = strings.TrimSpace(s.Recommendation)
 	s.Surgeon = strings.ToLower(strings.TrimSpace(s.Surgeon))
 	s.DicomLink = strings.TrimSpace(s.DicomLink)
 
@@ -89,6 +91,7 @@ type StudyResponse struct {
 	NameOperation  string    `json:"name_operation"`
 	StudyType      string    `json:"study_type"`
 	DescrOperation string    `json:"descr_operation"`
+	Recommendation string    `json:"recommendation"`
 	TimeBeginning  time.Time `json:"time_beginning"`
 	TimeDuration   int32     `json:"time_duration"`
 	Surgeon        string    `json:"surgeon"`

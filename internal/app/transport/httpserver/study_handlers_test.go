@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/domain"
@@ -19,6 +20,11 @@ type studyServiceStub struct {
 }
 
 func (s *studyServiceStub) GetAllStudies(_ context.Context, limit, offset int) ([]domain.Study, error) {
+	s.limit, s.offset = limit, offset
+	return s.studies, nil
+}
+
+func (s *studyServiceStub) GetProtocolStudiesSince(_ context.Context, _ time.Time, limit, offset int) ([]domain.Study, error) {
 	s.limit, s.offset = limit, offset
 	return s.studies, nil
 }
@@ -63,7 +69,7 @@ func (s *studyServiceStub) DeleteAllStudies(context.Context) error {
 func TestGetAllStudiesAppliesPagination(t *testing.T) {
 	service := &studyServiceStub{}
 	handler := NewHttpServer(service, nil)
-	request := httptest.NewRequest(http.MethodGet, "/studies?page=3&page_size=25", nil)
+	request := httptest.NewRequest(http.MethodGet, "/studies?scope=all&page=3&page_size=25", nil)
 	recorder := httptest.NewRecorder()
 
 	handler.GetAllStudies(recorder, request)
@@ -87,6 +93,7 @@ func TestCreateStudyPreservesStudyTypeAndTime(t *testing.T) {
 		"name_operation":"КАГ",
 		"study_type":"каг",
 		"descr_operation":"плановая",
+		"recommendation":"Стентирование в плановом порядке",
 		"time_beginning":"2026-07-17T10:00:00Z",
 		"time_duration":30,
 		"surgeon":"идрисов",
@@ -105,6 +112,9 @@ func TestCreateStudyPreservesStudyTypeAndTime(t *testing.T) {
 	}
 	if service.created.TimeBeginning().Time.IsZero() {
 		t.Fatal("TimeBeginning was lost during JSON/domain mapping")
+	}
+	if service.created.Recommendation() != "Стентирование в плановом порядке" {
+		t.Fatalf("Recommendation = %q", service.created.Recommendation())
 	}
 }
 

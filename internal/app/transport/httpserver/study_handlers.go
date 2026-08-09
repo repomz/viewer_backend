@@ -37,7 +37,14 @@ func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * pageSize
 
-	studies, err := h.studyService.GetAllStudies(r.Context(), pageSize, offset)
+	var studies []domain.Study
+	var err error
+	if query.Get("scope") == "all" {
+		studies, err = h.studyService.GetAllStudies(r.Context(), pageSize, offset)
+	} else {
+		start := monday(time.Now().In(time.Local)).AddDate(0, 0, -2)
+		studies, err = h.studyService.GetProtocolStudiesSince(r.Context(), start, pageSize, offset)
+	}
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return

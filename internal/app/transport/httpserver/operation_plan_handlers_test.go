@@ -60,9 +60,12 @@ func TestOperationPlanRoundTrip(t *testing.T) {
 	}
 }
 
-func TestPlanPatientMatchesSurnameOrFullName(t *testing.T) {
-	if !planPatientMatches("Иванов", "Иванов Иван Иванович") {
-		t.Fatal("surname must match the first protocol name component")
+func TestPlanPatientMatchesFullNameOrInitials(t *testing.T) {
+	if planPatientMatches("Иванов", "Иванов Иван Иванович") {
+		t.Fatal("surname alone must not link records from different patients")
+	}
+	if !planPatientMatches("Иванов И И", "Иванов Иван Иванович") {
+		t.Fatal("surname with initials must match full protocol name")
 	}
 	if !planPatientMatches("Иванов Иван Иванович", "Иванов Иван Иванович") {
 		t.Fatal("full name must match exactly")
@@ -72,7 +75,7 @@ func TestPlanPatientMatchesSurnameOrFullName(t *testing.T) {
 	}
 }
 
-func TestLatestPlanProtocolUsesCurrentYearLatestStudy(t *testing.T) {
+func TestPlanProtocolsReturnsThreePreviousAndCurrentCompletion(t *testing.T) {
 	makeStudy := func(patient string, date time.Time) domain.Study {
 		return domain.ResponseToDBStudy(domain.DBStudyData{
 			ID: uuid.New(), StudyID: uuid.NewString(), Patient: patient,
@@ -80,12 +83,17 @@ func TestLatestPlanProtocolUsesCurrentYearLatestStudy(t *testing.T) {
 		})
 	}
 	studies := []domain.Study{
-		makeStudy("Иванов Иван Иванович", time.Date(2025, 12, 31, 10, 0, 0, 0, time.Local)),
+		makeStudy("Иванов Иван Иванович", time.Date(2026, 1, 1, 10, 0, 0, 0, time.Local)),
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 2, 1, 10, 0, 0, 0, time.Local)),
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 1, 10, 0, 0, 0, time.Local)),
+		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 20, 10, 0, 0, 0, time.Local)),
+		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 21, 10, 0, 0, 0, time.Local)),
 	}
-	result := latestPlanProtocol(operationPlanEntry{Patient: "Иванов"}, studies, 2026)
-	if result == nil || result.TimeBeginning.Month() != time.July {
-		t.Fatalf("unexpected latest protocol: %#v", result)
+	previous, completed := planProtocols(
+		operationPlanEntry{Patient: "Иванов Иван Иванович"}, studies,
+		time.Date(2026, 7, 21, 0, 0, 0, 0, time.Local),
+	)
+	if len(previous) != 3 || completed == nil || completed.TimeBeginning.Day() != 21 {
+		t.Fatalf("unexpected protocols: previous=%#v completed=%#v", previous, completed)
 	}
 }

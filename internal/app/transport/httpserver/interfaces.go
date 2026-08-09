@@ -11,6 +11,7 @@ import (
 // StudyService is a study service
 type StudyService interface {
 	GetAllStudies(ctx context.Context, limit, offset int) ([]domain.Study, error)
+	GetProtocolStudiesSince(ctx context.Context, since time.Time, limit, offset int) ([]domain.Study, error)
 	GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error)
 	GetStudyByID(ctx context.Context, id uuid.UUID) (domain.Study, error)
 	GetStudyByStudyIDAndType(ctx context.Context, studyID, studyType string) (domain.Study, error)

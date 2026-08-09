@@ -1,6 +1,6 @@
 -- name: CreateStudy :one
-INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, time_beginning, time_duration, surgeon, dicom_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetStudies :many
@@ -8,6 +8,14 @@ SELECT * FROM studies
 WHERE deleted = false
 ORDER BY created_at DESC, id DESC
 LIMIT $1 OFFSET $2;
+
+-- name: GetProtocolStudiesSince :many
+SELECT * FROM studies
+WHERE deleted = false
+  AND time_beginning >= $1
+  AND lower(study_type) NOT IN ('xa', 'ct')
+ORDER BY time_beginning DESC NULLS LAST, created_at DESC, id DESC
+LIMIT $2 OFFSET $3;
 
 -- name: GetStudyByID :one
 SELECT * FROM studies

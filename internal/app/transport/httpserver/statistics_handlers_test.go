@@ -27,12 +27,12 @@ func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T
 	}
 	handler := NewHttpServer(&studyServiceStub{}, nil)
 	result := handler.buildOperationStatistics(studies, vmpStatisticsConfig{
-		OperationTypes:  []string{"стент_кор"},
+		OperationTypes:  []string{"stent_cor"},
 		IncludedStudies: []string{manualKAG.String()},
 		ExcludedStudies: []string{stentExcluded.String()},
 	}, 2026)
 
-	if len(result.OperationTypes) != 2 || len(result.VMPPatients) != 2 {
+	if len(result.OperationTypes) != len(statisticsOperationTypes) || len(result.VMPPatients) != 2 {
 		t.Fatalf("unexpected statistics: %#v", result)
 	}
 	if result.Surgeons[0].Surgeon != "Идрисов" || result.Surgeons[0].Total != 2 || result.Surgeons[0].VMP != 1 {
@@ -40,6 +40,18 @@ func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T
 	}
 	if result.Surgeons[1].Surgeon != "Старков" || result.Surgeons[1].VMP != 1 {
 		t.Fatalf("unexpected second surgeon row: %#v", result.Surgeons[1])
+	}
+}
+
+func TestStatisticsRecognizesStentWithIntravascularImaging(t *testing.T) {
+	study := statisticsStudy(uuid.New(), "Иванов", "Стентирование коронарной артерии с ВСУЗИ", "Идрисов")
+	ids := statisticsOperationTypeIDs(study)
+	want := map[string]bool{"vzuzi": true, "stent_cor": true, "stent_vzuzi": true}
+	for _, id := range ids {
+		delete(want, id)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing classifications %v in %v", want, ids)
 	}
 }
 

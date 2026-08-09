@@ -29,7 +29,8 @@ type operationPlanEntry struct {
 
 type operationPlanResponseEntry struct {
 	operationPlanEntry
-	PreviousOperation *httpmodels.StudyResponse `json:"previous_operation,omitempty"`
+	PreviousOperations []httpmodels.StudyResponse `json:"previous_operations"`
+	CompletedOperation *httpmodels.StudyResponse  `json:"completed_operation,omitempty"`
 }
 
 type operationPlanDay struct {
@@ -128,42 +129,67 @@ func planPatientMatches(planPatient, protocolPatient string) bool {
 	}
 	planParts := strings.Fields(planValue)
 	protocolParts := strings.Fields(protocolValue)
-	if len(planParts) == 1 {
-		return len(protocolParts) > 0 && planParts[0] == protocolParts[0]
+	if planValue == protocolValue {
+		return true
 	}
-	return planValue == protocolValue
+	// A surname with initials is an exact-enough representation of a full FIO.
+	if len(planParts) == 3 && len(protocolParts) >= 3 && planParts[0] == protocolParts[0] {
+		return strings.HasPrefix(protocolParts[1], planParts[1]) && strings.HasPrefix(protocolParts[2], planParts[2])
+	}
+	return false
 }
 
-func latestPlanProtocol(entry operationPlanEntry, studies []domain.Study, year int) *httpmodels.StudyResponse {
-	var latest *domain.Study
+func planProtocols(entry operationPlanEntry, studies []domain.Study, planDate time.Time) ([]httpmodels.StudyResponse, *httpmodels.StudyResponse) {
+	previous := make([]domain.Study, 0, 3)
+	var completed *domain.Study
 	for index := range studies {
 		study := &studies[index]
 		if !isProtocolStudy(*study) || !planPatientMatches(entry.Patient, study.Patient()) {
 			continue
 		}
 		beginning := study.TimeBeginning()
-		if !beginning.Valid || beginning.Time.In(time.Local).Year() != year {
+		if !beginning.Valid || beginning.Time.In(time.Local).Year() != planDate.Year() {
 			continue
 		}
-		if latest == nil || beginning.Time.After(latest.TimeBeginning().Time) {
-			latest = study
+		studyDate := beginning.Time.In(time.Local)
+		if studyDate.Format("2006-01-02") == planDate.Format("2006-01-02") {
+			if completed == nil || studyDate.After(completed.TimeBeginning().Time) {
+				completed = study
+			}
+			continue
+		}
+		if studyDate.Before(planDate) {
+			previous = append(previous, *study)
 		}
 	}
-	if latest == nil {
-		return nil
+	sort.Slice(previous, func(i, j int) bool {
+		return previous[i].TimeBeginning().Time.After(previous[j].TimeBeginning().Time)
+	})
+	if len(previous) > 3 {
+		previous = previous[:3]
 	}
-	response := toResponseStudy(*latest)
-	return &response
+	responses := make([]httpmodels.StudyResponse, 0, len(previous))
+	for _, study := range previous {
+		responses = append(responses, toResponseStudy(study))
+	}
+	var completedResponse *httpmodels.StudyResponse
+	if completed != nil {
+		value := toResponseStudy(*completed)
+		completedResponse = &value
+	}
+	return responses, completedResponse
 }
 
-func responsePlanEntries(entries []operationPlanEntry, studies []domain.Study, year int) []operationPlanResponseEntry {
+func responsePlanEntries(entries []operationPlanEntry, studies []domain.Study, planDate time.Time) []operationPlanResponseEntry {
 	entries = append([]operationPlanEntry(nil), entries...)
 	sortOperationPlanEntries(entries)
 	result := make([]operationPlanResponseEntry, 0, len(entries))
 	for _, entry := range entries {
+		previous, completed := planProtocols(entry, studies, planDate)
 		result = append(result, operationPlanResponseEntry{
 			operationPlanEntry: entry,
-			PreviousOperation:  latestPlanProtocol(entry, studies, year),
+			PreviousOperations: previous,
+			CompletedOperation: completed,
 		})
 	}
 	return result
@@ -185,6 +211,11 @@ func operationPlanDepartmentRank(value string) int {
 
 func sortOperationPlanEntries(entries []operationPlanEntry) {
 	sort.SliceStable(entries, func(i, j int) bool {
+		leftOperation := strings.ToLower(entries[i].Operation)
+		rightOperation := strings.ToLower(entries[j].Operation)
+		if leftOperation != rightOperation {
+			return leftOperation < rightOperation
+		}
 		leftRank := operationPlanDepartmentRank(entries[i].Department)
 		rightRank := operationPlanDepartmentRank(entries[j].Department)
 		if leftRank != rightRank {
@@ -224,20 +255,20 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	currentYear := time.Now().In(time.Local).Year()
 	response := operationPlanResponse{
 		WeekStart: start.Format("2006-01-02"),
 		Days:      make([]operationPlanDay, 0, 5),
 	}
 	for offset := 0; offset < 5; offset++ {
-		date := start.AddDate(0, 0, offset).Format("2006-01-02")
+		planDate := start.AddDate(0, 0, offset)
+		date := planDate.Format("2006-01-02")
 		entries := plan.Days[date]
 		if entries == nil {
 			entries = make([]operationPlanEntry, 0)
 		}
 		response.Days = append(response.Days, operationPlanDay{
 			Date:    date,
-			Entries: responsePlanEntries(entries, studies, currentYear),
+			Entries: responsePlanEntries(entries, studies, planDate),
 		})
 	}
 	server.RespondOK(response, w, r)
@@ -304,5 +335,6 @@ func (h HttpServer) PutOperationPlanDay(w http.ResponseWriter, r *http.Request) 
 		server.RespondWithError(fmt.Errorf("save operation plan: %w", err), w, r)
 		return
 	}
-	server.RespondOK(operationPlanDay{Date: date, Entries: responsePlanEntries(entries, nil, time.Now().Year())}, w, r)
+	planDate, _ := parsePlanDate(date)
+	server.RespondOK(operationPlanDay{Date: date, Entries: responsePlanEntries(entries, nil, planDate)}, w, r)
 }

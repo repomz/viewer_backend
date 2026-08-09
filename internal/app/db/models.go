@@ -30,6 +30,7 @@ type Study struct {
 	NameOperation  string         `json:"name_operation"`
 	StudyType      string         `json:"study_type"`
 	DescrOperation string         `json:"descr_operation"`
+	Recommendation string         `json:"recommendation"`
 	TimeBeginning  sql.NullTime   `json:"time_beginning"`
 	TimeDuration   sql.NullInt32  `json:"time_duration"`
 	Surgeon        string         `json:"surgeon"`

@@ -196,7 +196,7 @@ func (h HttpServer) buildOperationsReport(
 			previous = append(previous, map[string]any{
 				"date":      study.TimeBeginning().Time.In(time.Local).Format("02.01.2006"),
 				"operation": study.NameOperation(), "description": study.DescrOperation(),
-				"recommendation": "", "surgeon": study.Surgeon(),
+				"recommendation": study.Recommendation(), "surgeon": study.Surgeon(),
 			})
 		}
 		todayPlan = append(todayPlan, map[string]any{
