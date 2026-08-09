@@ -46,12 +46,17 @@ func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T
 func TestStatisticsRecognizesStentWithIntravascularImaging(t *testing.T) {
 	study := statisticsStudy(uuid.New(), "Иванов", "Стентирование коронарной артерии с ВСУЗИ", "Идрисов")
 	ids := statisticsOperationTypeIDs(study)
-	want := map[string]bool{"vzuzi": true, "stent_cor": true, "stent_vzuzi": true}
+	want := map[string]bool{"vzuzi": true, "stent_cor": true}
 	for _, id := range ids {
 		delete(want, id)
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing classifications %v in %v", want, ids)
+	}
+	for _, id := range ids {
+		if id == "stent_vzuzi" {
+			t.Fatalf("duplicate stent+VZUZI classification remains in %v", ids)
+		}
 	}
 }
 

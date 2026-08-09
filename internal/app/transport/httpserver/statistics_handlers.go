@@ -142,7 +142,6 @@ var statisticsOperationTypes = []statisticsOperationType{
 	{ID: "kag", Label: "КАГ"},
 	{ID: "tsag", Label: "ЦАГ"},
 	{ID: "stent_cor", Label: "СТЕНТ КОР"},
-	{ID: "stent_vzuzi", Label: "СТЕНТ + ВСУЗИ"},
 	{ID: "bap_cor", Label: "БАП КОР"},
 	{ID: "stent_vsa", Label: "СТЕНТ ВСА"},
 	{ID: "stent_upper", Label: "СТЕНТ В/К"},
@@ -174,9 +173,6 @@ func statisticsOperationTypeIDs(study domain.Study) []string {
 	}
 	if stent && coronary {
 		tags = append(tags, "stent_cor")
-		if vzuzi {
-			tags = append(tags, "stent_vzuzi")
-		}
 	} else if coronary && containsAny(text, "баллон", "бап") {
 		tags = append(tags, "bap_cor")
 	} else if containsAny(text, "каг", "коронарограф") {
