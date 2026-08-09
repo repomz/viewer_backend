@@ -355,7 +355,7 @@ REMOTE_PACS_TIMEOUT_SECONDS=300
 
 BACKEND_IMAGE=viewer-backend:local
 BACKEND_MIGRATIONS_IMAGE=viewer-backend-migrations:local
-FRONTEND_IMAGE=idrisovmarat/viewer_frontend:0.2.0
+FRONTEND_IMAGE=ghcr.io/repomz/viewer_frontend:0.2.0
 IMAGE_VERSION=production
 VCS_REF=COMMIT
 ```
