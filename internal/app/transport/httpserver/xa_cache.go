@@ -56,6 +56,7 @@ type xaCacheSeries struct {
 
 type xaCacheManifest struct {
 	Status       string          `json:"status"`
+	Profile      string          `json:"profile,omitempty"`
 	StudyUID     string          `json:"study_uid"`
 	Prepared     time.Time       `json:"prepared_at"`
 	FrameCount   int             `json:"frame_count"`
@@ -80,16 +81,21 @@ type xaCacheJob struct {
 
 // XACache prepares Orthanc rendered frames once and serves them as immutable files.
 type XACache struct {
-	root       string
-	pacsBase   string
-	username   string
-	password   string
-	client     *http.Client
-	ffmpegPath string
-	queue      chan string
-	jobs       map[string]*xaCacheJob
-	jobsMu     sync.RWMutex
-	workerOnce sync.Once
+	root         string
+	pacsBase     string
+	username     string
+	password     string
+	client       *http.Client
+	ffmpegPath   string
+	cineCRF      string
+	workerCount  int
+	frameWorkers int
+	cineWorkers  int
+	buildArchive bool
+	queue        chan string
+	jobs         map[string]*xaCacheJob
+	jobsMu       sync.RWMutex
+	workerOnce   sync.Once
 }
 
 func NewXACacheFromEnvironment() (*XACache, error) {
@@ -110,14 +116,19 @@ func NewXACacheFromEnvironment() (*XACache, error) {
 		return nil, fmt.Errorf("create XA cache directory: %w", err)
 	}
 	cache := &XACache{
-		root:       root,
-		pacsBase:   pacsBase,
-		username:   os.Getenv("REMOTE_PACS_USERNAME"),
-		password:   os.Getenv("REMOTE_PACS_PASSWORD"),
-		client:     &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
-		ffmpegPath: strings.TrimSpace(os.Getenv("XA_CACHE_FFMPEG_PATH")),
-		queue:      make(chan string, 128),
-		jobs:       make(map[string]*xaCacheJob),
+		root:         root,
+		pacsBase:     pacsBase,
+		username:     os.Getenv("REMOTE_PACS_USERNAME"),
+		password:     os.Getenv("REMOTE_PACS_PASSWORD"),
+		client:       &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
+		ffmpegPath:   strings.TrimSpace(os.Getenv("XA_CACHE_FFMPEG_PATH")),
+		cineCRF:      normalizedCineCRF(os.Getenv("XA_CACHE_CINE_CRF")),
+		workerCount:  envPositiveInt("XA_CACHE_STUDY_WORKERS", 2),
+		frameWorkers: envPositiveInt("XA_CACHE_FRAME_WORKERS", 3),
+		cineWorkers:  envPositiveInt("XA_CACHE_CINE_WORKERS", 1),
+		buildArchive: strings.EqualFold(strings.TrimSpace(os.Getenv("XA_CACHE_BUILD_ARCHIVE")), "true"),
+		queue:        make(chan string, 128),
+		jobs:         make(map[string]*xaCacheJob),
 	}
 	if cache.ffmpegPath == "" {
 		cache.ffmpegPath = "/usr/bin/ffmpeg"
@@ -126,13 +137,36 @@ func NewXACacheFromEnvironment() (*XACache, error) {
 	return cache, nil
 }
 
+func envPositiveInt(name string, fallback int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(name)))
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func normalizedCineCRF(value string) string {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 18 || parsed > 30 {
+		return "23"
+	}
+	return strconv.Itoa(parsed)
+}
+
+func (c *XACache) encodingProfile() string {
+	return "h264-" + strings.ReplaceAll(xaCacheViewport, ",", "x") +
+		"-crf" + normalizedCineCRF(c.cineCRF) + "-v2"
+}
+
 func (c *XACache) start() {
 	c.workerOnce.Do(func() {
-		go func() {
-			for studyUID := range c.queue {
-				c.prepare(studyUID)
-			}
-		}()
+		for range max(1, c.workerCount) {
+			go func() {
+				for studyUID := range c.queue {
+					c.prepare(studyUID)
+				}
+			}()
+		}
 	})
 }
 
@@ -172,6 +206,9 @@ func (c *XACache) cinesReady(manifest xaCacheManifest) bool {
 	if c.ffmpegPath == "" || len(manifest.Series) == 0 {
 		return c.ffmpegPath == ""
 	}
+	if manifest.Profile != c.encodingProfile() {
+		return false
+	}
 	for _, series := range manifest.Series {
 		if series.CineID == "" || series.CinePath == "" || series.CineBytes <= 0 {
 			return false
@@ -185,7 +222,7 @@ func (c *XACache) cinesReady(manifest xaCacheManifest) bool {
 }
 
 func (c *XACache) ready(manifest xaCacheManifest) bool {
-	return c.archiveReady(manifest) && c.cinesReady(manifest)
+	return manifest.Status == "ready" && c.cinesReady(manifest)
 }
 
 func (c *XACache) Enqueue(studyUID string) {
@@ -384,6 +421,7 @@ func (c *XACache) buildManifest(
 	})
 	manifest := xaCacheManifest{
 		Status:   "ready",
+		Profile:  c.encodingProfile(),
 		StudyUID: studyUID,
 		Series:   make([]xaCacheSeries, 0),
 	}
@@ -470,60 +508,56 @@ func (c *XACache) prepare(studyUID string) {
 		return
 	}
 
-	type result struct {
-		source xaFrameSource
-		size   int64
-		err    error
+	// The first series is deliberately completed and published before work on
+	// the rest of the study. Mobile clients can start playback while the server
+	// continues preparing the remaining series in the background.
+	firstSources := sourcesForSeries(sources, 0)
+	if err := c.downloadFrames(ctx, &manifest, firstSources, &status); err != nil {
+		c.fail(studyUID, err)
+		return
 	}
-	sourceQueue := make(chan xaFrameSource)
-	results := make(chan result, len(sources))
-	var workers sync.WaitGroup
-	for range 2 {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			for source := range sourceQueue {
-				size, downloadErr := c.downloadFrame(ctx, source)
-				results <- result{source: source, size: size, err: downloadErr}
-			}
-		}()
+	if err := c.writeCine(&manifest, 0); err != nil {
+		c.fail(studyUID, fmt.Errorf("create first XA cine: %w", err))
+		return
 	}
-	go func() {
-		for _, source := range sources {
-			sourceQueue <- source
-		}
-		close(sourceQueue)
-		workers.Wait()
-		close(results)
-	}()
-
-	for prepared := range results {
-		if prepared.err != nil {
-			cancel()
-			c.fail(studyUID, prepared.err)
-			return
-		}
-		manifest.Series[prepared.source.seriesIndex].
-			Frames[framePosition(manifest.Series[prepared.source.seriesIndex], prepared.source)].
-			Size = prepared.size
-		status.Prepared++
-		status.TotalBytes += prepared.size
-		c.setStatus(status)
-	}
+	manifest.Status = "partial"
 	manifest.Prepared = time.Now()
 	manifest.FrameCount = status.Prepared
 	manifest.TotalBytes = status.TotalBytes
-	if err := c.writeCines(&manifest); err != nil {
+	partialManifest := manifest
+	partialManifest.Series = append([]xaCacheSeries(nil), manifest.Series[0])
+	if err := c.writeManifest(partialManifest); err != nil {
+		c.fail(studyUID, err)
+		return
+	}
+
+	remaining := make([]xaFrameSource, 0, len(sources)-len(firstSources))
+	for _, source := range sources {
+		if source.seriesIndex != 0 {
+			remaining = append(remaining, source)
+		}
+	}
+	if err := c.downloadFrames(ctx, &manifest, remaining, &status); err != nil {
+		c.fail(studyUID, err)
+		return
+	}
+	if err := c.writeCinesFrom(&manifest, 1); err != nil {
 		c.fail(studyUID, fmt.Errorf("create XA cine: %w", err))
 		return
 	}
-	archiveBytes, err := c.writeArchive(manifest)
-	if err != nil {
-		c.fail(studyUID, fmt.Errorf("create XA archive: %w", err))
-		return
+	manifest.Status = "ready"
+	manifest.Prepared = time.Now()
+	manifest.FrameCount = status.Prepared
+	manifest.TotalBytes = status.TotalBytes
+	if c.buildArchive {
+		archiveBytes, err := c.writeArchive(manifest)
+		if err != nil {
+			c.fail(studyUID, fmt.Errorf("create XA archive: %w", err))
+			return
+		}
+		manifest.ArchivePath = "/xa-cache/" + studyUID + "/archive"
+		manifest.ArchiveBytes = archiveBytes
 	}
-	manifest.ArchivePath = "/xa-cache/" + studyUID + "/archive"
-	manifest.ArchiveBytes = archiveBytes
 	if err := c.writeManifest(manifest); err != nil {
 		c.fail(studyUID, err)
 		return
@@ -543,12 +577,112 @@ func (c *XACache) prepare(studyUID string) {
 	)
 }
 
+func sourcesForSeries(sources []xaFrameSource, seriesIndex int) []xaFrameSource {
+	result := make([]xaFrameSource, 0)
+	for _, source := range sources {
+		if source.seriesIndex == seriesIndex {
+			result = append(result, source)
+		}
+	}
+	return result
+}
+
+func (c *XACache) downloadFrames(
+	ctx context.Context,
+	manifest *xaCacheManifest,
+	sources []xaFrameSource,
+	status *xaCacheStatus,
+) error {
+	if len(sources) == 0 {
+		return nil
+	}
+	type result struct {
+		source xaFrameSource
+		size   int64
+		err    error
+	}
+	sourceQueue := make(chan xaFrameSource)
+	results := make(chan result, len(sources))
+	workerCount := min(max(1, c.frameWorkers), len(sources))
+	var workers sync.WaitGroup
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for source := range sourceQueue {
+				size, err := c.downloadFrame(ctx, source)
+				results <- result{source: source, size: size, err: err}
+			}
+		}()
+	}
+	go func() {
+		for _, source := range sources {
+			sourceQueue <- source
+		}
+		close(sourceQueue)
+		workers.Wait()
+		close(results)
+	}()
+	for prepared := range results {
+		if prepared.err != nil {
+			return prepared.err
+		}
+		series := &manifest.Series[prepared.source.seriesIndex]
+		series.Frames[framePosition(*series, prepared.source)].Size = prepared.size
+		status.Prepared++
+		status.TotalBytes += prepared.size
+		c.setStatus(*status)
+	}
+	return nil
+}
+
 func cineID(seriesUID string) string {
 	digest := sha256.Sum256([]byte(seriesUID))
 	return hex.EncodeToString(digest[:12]) + ".mp4"
 }
 
 func (c *XACache) writeCines(manifest *xaCacheManifest) error {
+	return c.writeCinesFrom(manifest, 0)
+}
+
+func (c *XACache) writeCinesFrom(manifest *xaCacheManifest, start int) error {
+	if c.ffmpegPath == "" {
+		return nil
+	}
+	if start >= len(manifest.Series) {
+		return nil
+	}
+	manifest.Profile = c.encodingProfile()
+	indexes := make(chan int)
+	errorsChannel := make(chan error, len(manifest.Series)-start)
+	workerCount := min(max(1, c.cineWorkers), len(manifest.Series)-start)
+	var workers sync.WaitGroup
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for seriesIndex := range indexes {
+				if err := c.writeCine(manifest, seriesIndex); err != nil {
+					errorsChannel <- err
+				}
+			}
+		}()
+	}
+	for seriesIndex := start; seriesIndex < len(manifest.Series); seriesIndex++ {
+		indexes <- seriesIndex
+	}
+	close(indexes)
+	workers.Wait()
+	close(errorsChannel)
+	for err := range errorsChannel {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *XACache) writeCine(manifest *xaCacheManifest, seriesIndex int) error {
 	if c.ffmpegPath == "" {
 		return nil
 	}
@@ -557,67 +691,65 @@ func (c *XACache) writeCines(manifest *xaCacheManifest) error {
 	if err := os.MkdirAll(cinesDirectory, 0o750); err != nil {
 		return err
 	}
-	for seriesIndex := range manifest.Series {
-		series := &manifest.Series[seriesIndex]
-		id := cineID(series.SeriesUID)
-		finalPath := c.cinePath(manifest.StudyUID, id)
-		if info, err := os.Stat(finalPath); err == nil && info.Size() > 0 {
-			series.CineID = id
-			series.CinePath = "/xa-cache/" + manifest.StudyUID + "/series/" + id
-			series.CineBytes = info.Size()
-			continue
-		}
-		sequenceDirectory, err := os.MkdirTemp(directory, ".cine-sequence-*")
-		if err != nil {
-			return err
-		}
-		for frameIndex, frame := range series.Frames {
-			source := filepath.Join(directory, "frames", frame.ID)
-			link := filepath.Join(sequenceDirectory, fmt.Sprintf("%06d.jpg", frameIndex+1))
-			if err := os.Symlink(source, link); err != nil {
-				_ = os.RemoveAll(sequenceDirectory)
-				return err
-			}
-		}
-		temporary, err := os.CreateTemp(cinesDirectory, ".cine-*.mp4.tmp")
-		if err != nil {
-			_ = os.RemoveAll(sequenceDirectory)
-			return err
-		}
-		temporaryPath := temporary.Name()
-		_ = temporary.Close()
-		command := exec.Command(
-			c.ffmpegPath,
-			"-hide_banner", "-loglevel", "error", "-y",
-			"-framerate", strconv.Itoa(series.FPS),
-			"-start_number", "1",
-			"-i", filepath.Join(sequenceDirectory, "%06d.jpg"),
-			"-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-			"-pix_fmt", "yuv420p",
-			"-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-			"-movflags", "+faststart",
-			"-f", "mp4",
-			temporaryPath,
-		)
-		output, commandErr := command.CombinedOutput()
-		_ = os.RemoveAll(sequenceDirectory)
-		if commandErr != nil {
-			_ = os.Remove(temporaryPath)
-			return fmt.Errorf("ffmpeg series %s: %w: %s", series.SeriesUID, commandErr, strings.TrimSpace(string(output)))
-		}
-		info, err := os.Stat(temporaryPath)
-		if err != nil || info.Size() == 0 {
-			_ = os.Remove(temporaryPath)
-			return errors.New("ffmpeg produced an empty XA cine")
-		}
-		if err := os.Rename(temporaryPath, finalPath); err != nil {
-			_ = os.Remove(temporaryPath)
-			return err
-		}
+	series := &manifest.Series[seriesIndex]
+	id := cineID(series.SeriesUID + "|" + c.encodingProfile())
+	finalPath := c.cinePath(manifest.StudyUID, id)
+	if info, err := os.Stat(finalPath); err == nil && info.Size() > 0 {
 		series.CineID = id
 		series.CinePath = "/xa-cache/" + manifest.StudyUID + "/series/" + id
 		series.CineBytes = info.Size()
+		return nil
 	}
+	sequenceDirectory, err := os.MkdirTemp(directory, ".cine-sequence-*")
+	if err != nil {
+		return err
+	}
+	for frameIndex, frame := range series.Frames {
+		source := filepath.Join(directory, "frames", frame.ID)
+		link := filepath.Join(sequenceDirectory, fmt.Sprintf("%06d.jpg", frameIndex+1))
+		if err := os.Symlink(source, link); err != nil {
+			_ = os.RemoveAll(sequenceDirectory)
+			return err
+		}
+	}
+	temporary, err := os.CreateTemp(cinesDirectory, ".cine-*.mp4.tmp")
+	if err != nil {
+		_ = os.RemoveAll(sequenceDirectory)
+		return err
+	}
+	temporaryPath := temporary.Name()
+	_ = temporary.Close()
+	command := exec.Command(
+		c.ffmpegPath,
+		"-hide_banner", "-loglevel", "error", "-y",
+		"-framerate", strconv.Itoa(series.FPS),
+		"-start_number", "1",
+		"-i", filepath.Join(sequenceDirectory, "%06d.jpg"),
+		"-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", normalizedCineCRF(c.cineCRF),
+		"-pix_fmt", "yuv420p",
+		"-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+		"-movflags", "+faststart",
+		"-f", "mp4",
+		temporaryPath,
+	)
+	output, commandErr := command.CombinedOutput()
+	_ = os.RemoveAll(sequenceDirectory)
+	if commandErr != nil {
+		_ = os.Remove(temporaryPath)
+		return fmt.Errorf("ffmpeg series %s: %w: %s", series.SeriesUID, commandErr, strings.TrimSpace(string(output)))
+	}
+	info, err := os.Stat(temporaryPath)
+	if err != nil || info.Size() == 0 {
+		_ = os.Remove(temporaryPath)
+		return errors.New("ffmpeg produced an empty XA cine")
+	}
+	if err := os.Rename(temporaryPath, finalPath); err != nil {
+		_ = os.Remove(temporaryPath)
+		return err
+	}
+	series.CineID = id
+	series.CinePath = "/xa-cache/" + manifest.StudyUID + "/series/" + id
+	series.CineBytes = info.Size()
 	return nil
 }
 
@@ -813,6 +945,11 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.xaCache.Enqueue(studyUID)
+	if err == nil && manifest.Status == "partial" && len(manifest.Series) > 0 &&
+		manifest.Series[0].CinePath != "" && manifest.Series[0].CineBytes > 0 {
+		server.RespondOK(manifest, w, r)
+		return
+	}
 	status := h.xaCache.getStatus(studyUID)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Retry-After", "2")

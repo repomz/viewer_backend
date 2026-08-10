@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/repomz/viewer_backend/internal/app/common/server"
@@ -126,19 +127,61 @@ func importRemotePACS(ctx context.Context, files []httpmodels.DicomFile) error {
 	client := &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second}
 	username := os.Getenv("REMOTE_PACS_USERNAME")
 	password := os.Getenv("REMOTE_PACS_PASSWORD")
-	for _, file := range files {
-		if err := importRemotePACSFile(
-			ctx,
-			client,
-			remoteURL,
-			username,
-			password,
-			file,
-		); err != nil {
-			return err
-		}
+	workerCount := min(envPositiveInt("REMOTE_PACS_IMPORT_WORKERS", 4), len(files))
+	if workerCount == 0 {
+		return nil
 	}
-	return nil
+	workContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan httpmodels.DicomFile)
+	errorsChannel := make(chan error, 1)
+	var workers sync.WaitGroup
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for file := range jobs {
+				if err := importRemotePACSFile(
+					workContext, client, remoteURL, username, password, file,
+				); err != nil {
+					select {
+					case errorsChannel <- err:
+						cancel()
+					default:
+					}
+					return
+				}
+			}
+		}()
+	}
+	go func() {
+		defer close(jobs)
+		for _, file := range files {
+			select {
+			case jobs <- file:
+			case <-workContext.Done():
+				return
+			}
+		}
+	}()
+	workers.Wait()
+	select {
+	case err := <-errorsChannel:
+		return err
+	default:
+		return nil
+	}
+}
+
+type countingReader struct {
+	reader io.Reader
+	read   int64
+}
+
+func (r *countingReader) Read(buffer []byte) (int, error) {
+	read, err := r.reader.Read(buffer)
+	r.read += int64(read)
+	return read, err
 }
 
 func importRemotePACSFile(
@@ -162,44 +205,29 @@ func importRemotePACSFile(
 		return fmt.Errorf("download DICOM %s: HTTP %d", file.Name, downloadResponse.StatusCode)
 	}
 
-	temporaryFile, err := os.CreateTemp("", "viewer-dicom-*.dcm")
-	if err != nil {
+	if downloadResponse.ContentLength >= 0 && downloadResponse.ContentLength != file.Size {
 		_ = downloadResponse.Body.Close()
-		return fmt.Errorf("create temporary DICOM file: %w", err)
-	}
-	temporaryPath := temporaryFile.Name()
-	defer func() {
-		_ = temporaryFile.Close()
-		_ = os.Remove(temporaryPath)
-	}()
-
-	written, copyErr := io.Copy(temporaryFile, downloadResponse.Body)
-	closeErr := downloadResponse.Body.Close()
-	if copyErr != nil {
-		return fmt.Errorf("download DICOM %s body: %w", file.Name, copyErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close DICOM %s download: %w", file.Name, closeErr)
-	}
-	if written != file.Size {
 		return fmt.Errorf(
 			"download DICOM %s size mismatch: received=%d expected=%d",
 			file.Name,
-			written,
+			downloadResponse.ContentLength,
 			file.Size,
 		)
 	}
-	if _, err := temporaryFile.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("rewind DICOM %s: %w", file.Name, err)
-	}
+	counted := &countingReader{reader: downloadResponse.Body}
+	body := struct {
+		io.Reader
+		io.Closer
+	}{Reader: counted, Closer: downloadResponse.Body}
 
 	uploadRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
 		remoteURL,
-		temporaryFile,
+		body,
 	)
 	if err != nil {
+		_ = downloadResponse.Body.Close()
 		return fmt.Errorf("build remote PACS request: %w", err)
 	}
 	uploadRequest.ContentLength = file.Size
@@ -215,6 +243,12 @@ func importRemotePACSFile(
 	_ = uploadResponse.Body.Close()
 	if uploadResponse.StatusCode < 200 || uploadResponse.StatusCode >= 300 {
 		return fmt.Errorf("upload DICOM %s: HTTP %d", file.Name, uploadResponse.StatusCode)
+	}
+	if counted.read != file.Size {
+		return fmt.Errorf(
+			"download DICOM %s size mismatch: received=%d expected=%d",
+			file.Name, counted.read, file.Size,
+		)
 	}
 	return nil
 }

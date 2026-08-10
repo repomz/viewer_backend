@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -92,7 +93,9 @@ func run() error {
 		return fmt.Errorf("initialize XA cache: %w", err)
 	}
 	httpServer.SetXACache(xaCache)
-	go xaCache.WarmExisting(context.Background())
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("XA_CACHE_WARM_EXISTING")), "true") {
+		go xaCache.WarmExisting(context.Background())
+	}
 	retentionCtx, cancelRetention := context.WithCancel(context.Background())
 	defer cancelRetention()
 	go httpServer.StartStudyRetention(retentionCtx)

@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 func TestXACachePreparesEveryFrameOnce(t *testing.T) {
@@ -44,11 +46,12 @@ func TestXACachePreparesEveryFrameOnce(t *testing.T) {
 
 	root := t.TempDir()
 	cache := &XACache{
-		root:     root,
-		pacsBase: orthanc.URL,
-		client:   orthanc.Client(),
-		queue:    make(chan string, 1),
-		jobs:     make(map[string]*xaCacheJob),
+		root:         root,
+		pacsBase:     orthanc.URL,
+		client:       orthanc.Client(),
+		buildArchive: true,
+		queue:        make(chan string, 1),
+		jobs:         make(map[string]*xaCacheJob),
 	}
 	cache.prepare("1.2.3")
 
@@ -217,5 +220,77 @@ func TestXACacheEnqueueIsIdempotent(t *testing.T) {
 	}
 	if _, ok := <-cache.queue; !ok {
 		t.Fatal("queue closed unexpectedly")
+	}
+}
+
+func TestXACacheServesPartialFirstSeriesWhilePreparationContinues(t *testing.T) {
+	root := t.TempDir()
+	studyUID := "1.2.840.1"
+	cache := &XACache{
+		root:       root,
+		ffmpegPath: "/usr/bin/ffmpeg",
+		cineCRF:    "23",
+		queue:      make(chan string, 1),
+		jobs:       make(map[string]*xaCacheJob),
+	}
+	cine := cineID("series-1|" + cache.encodingProfile())
+	manifest := xaCacheManifest{
+		Status:   "partial",
+		Profile:  cache.encodingProfile(),
+		StudyUID: studyUID,
+		Series: []xaCacheSeries{{
+			SeriesUID: "series-1",
+			CineID:    cine,
+			CinePath:  "/xa-cache/" + studyUID + "/series/" + cine,
+			CineBytes: 4,
+		}},
+	}
+	if err := os.MkdirAll(filepath.Dir(cache.cinePath(studyUID, cine)), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cache.cinePath(studyUID, cine), []byte("cine"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.writeManifest(manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	request := mux.SetURLVars(
+		httptest.NewRequest(http.MethodGet, "/xa-cache/"+studyUID+"/manifest", nil),
+		map[string]string{"study_uid": studyUID},
+	)
+	recorder := httptest.NewRecorder()
+	server := HttpServer{xaCache: cache}
+	server.GetXACacheManifest(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("partial manifest status = %d, expected 200", recorder.Code)
+	}
+	if status := cache.getStatus(studyUID); status.Status != "queued" {
+		t.Fatalf("background status = %q, expected queued", status.Status)
+	}
+}
+
+func TestXACacheReadyDoesNotRequireUnusedArchive(t *testing.T) {
+	root := t.TempDir()
+	cache := &XACache{root: root, ffmpegPath: "/usr/bin/ffmpeg", cineCRF: "23"}
+	studyUID := "1.2.840.2"
+	cine := cineID("series-1|" + cache.encodingProfile())
+	if err := os.MkdirAll(filepath.Dir(cache.cinePath(studyUID, cine)), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cache.cinePath(studyUID, cine), []byte("cine"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	manifest := xaCacheManifest{
+		Status:   "ready",
+		Profile:  cache.encodingProfile(),
+		StudyUID: studyUID,
+		Series: []xaCacheSeries{{
+			CineID: cine, CinePath: "/series/" + cine, CineBytes: 4,
+		}},
+	}
+	if !cache.ready(manifest) {
+		t.Fatal("ready cine manifest unexpectedly requires a JPEG archive")
 	}
 }
