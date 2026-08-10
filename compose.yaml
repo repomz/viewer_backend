@@ -135,6 +135,7 @@ services:
       REMOTE_PACS_PASSWORD: ${REMOTE_PACS_PASSWORD:-changestrongpassword}
       REMOTE_PACS_TIMEOUT_SECONDS: ${REMOTE_PACS_TIMEOUT_SECONDS:-300}
       REMOTE_PACS_IMPORT_WORKERS: ${REMOTE_PACS_IMPORT_WORKERS:-4}
+      STUDY_RETENTION_ENABLED: ${STUDY_RETENTION_ENABLED:-false}
     volumes:
       - reports-data:/app/reports
       - plans-data:/app/plans

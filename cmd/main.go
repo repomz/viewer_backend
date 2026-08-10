@@ -98,7 +98,9 @@ func run() error {
 	}
 	retentionCtx, cancelRetention := context.WithCancel(context.Background())
 	defer cancelRetention()
-	go httpServer.StartStudyRetention(retentionCtx)
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("STUDY_RETENTION_ENABLED")), "true") {
+		go httpServer.StartStudyRetention(retentionCtx)
+	}
 	go httpServer.StartReportScheduler(retentionCtx)
 
 	// create http router
