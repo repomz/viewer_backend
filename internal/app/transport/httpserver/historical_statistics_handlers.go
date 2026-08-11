@@ -22,6 +22,7 @@ type historicalStatisticsYear struct {
 }
 
 type historicalStatisticsDocument struct {
+	SchemaVersion  int                        `json:"schema_version"`
 	Source         string                     `json:"source"`
 	StartYear      int                        `json:"start_year"`
 	EndYear        int                        `json:"end_year"`
@@ -84,6 +85,9 @@ func loadHistoricalStatistics() (historicalStatisticsDocument, error) {
 }
 
 func normalizeHistoricalStatistics(document *historicalStatisticsDocument) error {
+	if document.SchemaVersion != 2 {
+		return errors.New("schema_version 2 is required")
+	}
 	currentYear := time.Now().Year()
 	if document.StartYear < 1900 || document.StartYear > currentYear+1 {
 		return errors.New("start_year is outside the supported range")
@@ -141,7 +145,7 @@ func (h HttpServer) GetHistoricalStatistics(w http.ResponseWriter, r *http.Reque
 	historicalStatisticsMu.RUnlock()
 	if errors.Is(err, os.ErrNotExist) {
 		server.RespondOK(historicalStatisticsDocument{
-			OperationTypes: []string{}, Years: []historicalStatisticsYear{},
+			SchemaVersion: 2, OperationTypes: []string{}, Years: []historicalStatisticsYear{},
 		}, w, r)
 		return
 	}

@@ -8,7 +8,8 @@ import (
 func TestHistoricalStatisticsRoundTrip(t *testing.T) {
 	t.Setenv("PLANS_DIR", t.TempDir())
 	document := historicalStatisticsDocument{
-		Source: "test", StartYear: 2024, EndYear: 2026, GeneratedAt: time.Now(),
+		SchemaVersion: 2,
+		Source:        "test", StartYear: 2024, EndYear: 2026, GeneratedAt: time.Now(),
 		OperationTypes: []string{"КАГ", "ЦАГ"},
 		Years:          []historicalStatisticsYear{{Year: 2026, Counts: map[string]int{"КАГ": 3, "ЦАГ": 2}}},
 	}

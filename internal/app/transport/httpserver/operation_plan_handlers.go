@@ -31,6 +31,7 @@ type operationPlanResponseEntry struct {
 	operationPlanEntry
 	PreviousOperations []httpmodels.StudyResponse `json:"previous_operations"`
 	CompletedOperation *httpmodels.StudyResponse  `json:"completed_operation,omitempty"`
+	HistorySearched    bool                       `json:"history_searched"`
 }
 
 type operationPlanDay struct {
@@ -129,20 +130,38 @@ func planPatientMatches(planPatient, protocolPatient string) bool {
 	}
 	planParts := strings.Fields(planValue)
 	protocolParts := strings.Fields(protocolValue)
-	if planValue == protocolValue {
-		return true
+	initials, ok := planPatientInitials(planParts)
+	if !ok || len(protocolParts) < 3 || planParts[0] != protocolParts[0] {
+		return false
 	}
-	// The plan is commonly filled with a surname only. The operation date is
-	// checked separately by planProtocols, so an exact surname is sufficient
-	// to link the protocol completed on that day.
-	if len(planParts) == 1 && len(protocolParts) >= 1 {
-		return planParts[0] == protocolParts[0]
+	first, second := []rune(protocolParts[1]), []rune(protocolParts[2])
+	return len(first) > 0 && len(second) > 0 && first[0] == initials[0] && second[0] == initials[1]
+}
+
+func planPatientInitials(parts []string) ([2]rune, bool) {
+	var result [2]rune
+	if len(parts) == 2 {
+		initials := []rune(parts[1])
+		if len(initials) != 2 {
+			return result, false
+		}
+		result[0], result[1] = initials[0], initials[1]
+		return result, true
 	}
-	// A surname with initials is an exact-enough representation of a full FIO.
-	if len(planParts) == 3 && len(protocolParts) >= 3 && planParts[0] == protocolParts[0] {
-		return strings.HasPrefix(protocolParts[1], planParts[1]) && strings.HasPrefix(protocolParts[2], planParts[2])
+	if len(parts) == 3 {
+		first, second := []rune(parts[1]), []rune(parts[2])
+		if len(first) != 1 || len(second) != 1 {
+			return result, false
+		}
+		result[0], result[1] = first[0], second[0]
+		return result, true
 	}
-	return false
+	return result, false
+}
+
+func planPatientSearchable(value string) bool {
+	_, ok := planPatientInitials(strings.Fields(normalizePlanPatient(value)))
+	return ok
 }
 
 func planProtocols(entry operationPlanEntry, studies []domain.Study, planDate time.Time) ([]httpmodels.StudyResponse, *httpmodels.StudyResponse) {
@@ -196,6 +215,7 @@ func responsePlanEntries(entries []operationPlanEntry, studies []domain.Study, p
 			operationPlanEntry: entry,
 			PreviousOperations: previous,
 			CompletedOperation: completed,
+			HistorySearched:    planPatientSearchable(entry.Patient),
 		})
 	}
 	return result

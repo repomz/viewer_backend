@@ -61,31 +61,28 @@ func TestOperationPlanRoundTrip(t *testing.T) {
 }
 
 func TestPlanPatientMatchesFullNameOrInitials(t *testing.T) {
-	if !planPatientMatches("Иванов", "Иванов Иван Иванович") {
-		t.Fatal("exact surname must match a full protocol name")
-	}
 	if !planPatientMatches("Иванов И И", "Иванов Иван Иванович") {
 		t.Fatal("surname with initials must match full protocol name")
 	}
-	if !planPatientMatches("Иванов Иван Иванович", "Иванов Иван Иванович") {
-		t.Fatal("full name must match exactly")
+	if !planPatientMatches("Иванов ИИ", "Иванов Иван Иванович") {
+		t.Fatal("compact initials must match full protocol name")
 	}
-	if planPatientMatches("Иванов Иван", "Иванов Иван Иванович") {
-		t.Fatal("partial full name must not match")
+	if planPatientMatches("Иванов", "Иванов Иван Иванович") {
+		t.Fatal("surname only must not trigger history search")
 	}
 	if planPatientMatches("Иван", "Иванов Иван Иванович") {
 		t.Fatal("partial surname must not match")
 	}
 }
 
-func TestPlanProtocolsMatchesSurnameOnlyOnPlanDate(t *testing.T) {
+func TestPlanProtocolsRequiresInitialsOnPlanDate(t *testing.T) {
 	study := domain.ResponseToDBStudy(domain.DBStudyData{
 		ID: uuid.New(), StudyID: uuid.NewString(), Patient: "Ларькин Ю.П.",
 		StudyType: "бап_кор", NameOperation: "БАП коронарной артерии",
 		TimeBeginning: time.Date(2026, 8, 7, 5, 30, 0, 0, time.Local),
 	})
 	previous, completed := planProtocols(
-		operationPlanEntry{Patient: "Ларькин"}, []domain.Study{study},
+		operationPlanEntry{Patient: "Ларькин ЮП"}, []domain.Study{study},
 		time.Date(2026, 8, 7, 0, 0, 0, 0, time.Local),
 	)
 	if len(previous) != 0 || completed == nil || completed.Patient != "Ларькин Ю.П." {
@@ -108,7 +105,7 @@ func TestPlanProtocolsReturnsThreePreviousAndCurrentCompletion(t *testing.T) {
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 21, 10, 0, 0, 0, time.Local)),
 	}
 	previous, completed := planProtocols(
-		operationPlanEntry{Patient: "Иванов Иван Иванович"}, studies,
+		operationPlanEntry{Patient: "Иванов ИИ"}, studies,
 		time.Date(2026, 7, 21, 0, 0, 0, 0, time.Local),
 	)
 	if len(previous) != 3 || completed == nil || completed.TimeBeginning.Day() != 21 {

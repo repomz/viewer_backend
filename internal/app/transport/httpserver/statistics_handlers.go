@@ -148,7 +148,7 @@ var statisticsOperationTypes = []statisticsOperationType{
 	{ID: "stent_lower", Label: "СТЕНТ Н/К"},
 	{ID: "aneurysm", Label: "АНЕВРИЗМА"},
 	{ID: "stroke", Label: "ИНСУЛЬТ"},
-	{ID: "bap_shin", Label: "БАП ГОЛЕНЬ"},
+	{ID: "bap_shin", Label: "Голень"},
 }
 
 func containsAny(value string, needles ...string) bool {
