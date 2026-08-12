@@ -230,6 +230,20 @@ func (c *XACache) cinesReady(manifest xaCacheManifest) bool {
 	return true
 }
 
+func (c *XACache) localFilesReady(manifest xaCacheManifest) bool {
+	for _, series := range manifest.Series {
+		if info, err := os.Stat(c.cinePath(manifest.StudyUID, series.CineID)); err != nil || info.Size() != series.CineBytes {
+			return false
+		}
+		for _, frame := range series.Frames {
+			if info, err := os.Stat(filepath.Join(c.root, manifest.StudyUID, "frames", frame.ID)); err != nil || info.Size() != frame.Size {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (c *XACache) ready(manifest xaCacheManifest) bool {
 	return manifest.Status == "ready" && c.cinesReady(manifest)
 }
@@ -268,6 +282,81 @@ func (c *XACache) Enqueue(studyUID string) {
 	default:
 		go func() { c.queue <- studyUID }()
 	}
+}
+
+// HydrateArchived restores a cloud archive into the local hot cache. It is
+// intentionally separate from Enqueue: opening an old archived study must not
+// make it permanently occupy backend disk space again.
+func (c *XACache) HydrateArchived(studyUID string) {
+	if !validStudyUID(studyUID) {
+		return
+	}
+	manifest, err := c.readManifest(studyUID)
+	if err != nil || !manifest.CloudArchived || c.localFilesReady(manifest) {
+		return
+	}
+	c.jobsMu.Lock()
+	current := c.jobs[studyUID]
+	if current != nil && (current.status.Status == "queued" || current.status.Status == "preparing") {
+		c.jobsMu.Unlock()
+		return
+	}
+	c.jobs[studyUID] = &xaCacheJob{status: xaCacheStatus{Status: "queued", StudyUID: studyUID}}
+	c.jobsMu.Unlock()
+	go c.hydrateArchivedStudy(manifest)
+}
+
+func (c *XACache) hydrateArchivedStudy(manifest xaCacheManifest) {
+	if c.archiveSlots != nil {
+		c.archiveSlots <- struct{}{}
+		defer func() { <-c.archiveSlots }()
+	}
+	c.setStatus(xaCacheStatus{Status: "preparing", StudyUID: manifest.StudyUID})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	type download struct{ key, destination string }
+	downloads := make([]download, 0, manifest.FrameCount+len(manifest.Series))
+	for _, series := range manifest.Series {
+		downloads = append(downloads, download{archiveObjectKey(manifest.StudyUID, "cines", series.CineID), c.cinePath(manifest.StudyUID, series.CineID)})
+		for _, frame := range series.Frames {
+			downloads = append(downloads, download{archiveObjectKey(manifest.StudyUID, "frames", frame.ID), filepath.Join(c.root, manifest.StudyUID, "frames", frame.ID)})
+		}
+	}
+	jobs := make(chan download, len(downloads))
+	errCh := make(chan error, 1)
+	var workers sync.WaitGroup
+	for index := 0; index < 3; index++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for item := range jobs {
+				if err := c.cloud.downloadFile(ctx, item.key, item.destination); err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+			}
+		}()
+	}
+	for _, item := range downloads {
+		jobs <- item
+	}
+	close(jobs)
+	workers.Wait()
+	select {
+	case err := <-errCh:
+		c.fail(manifest.StudyUID, fmt.Errorf("hydrate XA cache: %w", err))
+		return
+	default:
+	}
+	if err := c.writeManifest(manifest); err != nil {
+		c.fail(manifest.StudyUID, err)
+		return
+	}
+	c.setStatus(xaCacheStatus{Status: "ready", StudyUID: manifest.StudyUID, FrameCount: manifest.FrameCount, Prepared: manifest.FrameCount, TotalBytes: manifest.TotalBytes})
+	log.Printf("XA hot cache hydrated: study_uid=%s bytes=%d", manifest.StudyUID, manifest.TotalBytes)
 }
 
 func (c *XACache) archivePreparedStudy(manifest xaCacheManifest) {

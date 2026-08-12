@@ -20,6 +20,31 @@ type studyRetentionResult struct {
 	Deleted int
 }
 
+// WarmCurrentXACache restores only XA studies that belong to the active
+// clinical retention window. Older cloud archives remain cold until opened.
+func (h HttpServer) WarmCurrentXACache(ctx context.Context) {
+	if h.studyService == nil || h.xaCache == nil {
+		return
+	}
+	now := time.Now()
+	for offset := 0; ; offset += studyRetentionPageSize {
+		page, err := h.studyService.GetAllStudies(ctx, studyRetentionPageSize, offset)
+		if err != nil {
+			log.Printf("XA hot cache warmup skipped: %v", err)
+			return
+		}
+		for _, study := range page {
+			if strings.EqualFold(strings.TrimSpace(study.StudyType()), "xa") &&
+				!shouldDeleteArchivedXAStudy(study, now) {
+				h.xaCache.HydrateArchived(study.StudyID())
+			}
+		}
+		if len(page) < studyRetentionPageSize {
+			return
+		}
+	}
+}
+
 // StartStudyRetention periodically applies the protocol retention policy.
 // It is safe to run repeatedly because studies are soft-deleted.
 func (h HttpServer) StartStudyRetention(ctx context.Context) {
@@ -104,17 +129,16 @@ func (h HttpServer) runStudyRetention(
 		modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
 		deleteStudy := shouldDeleteProtocolStudy(study, plan, now)
 		if modality == "xa" {
-			deleteStudy = shouldDeleteArchivedXAStudy(study, now) &&
-				h.xaCache != nil && h.xaCache.cloudArchived(study.StudyID())
+			if shouldDeleteArchivedXAStudy(study, now) && h.xaCache != nil && h.xaCache.cloudArchived(study.StudyID()) {
+				_ = h.xaCache.removeLocalStudy(study.StudyID())
+			}
+			continue
 		}
 		if !deleteStudy {
 			continue
 		}
 		if err := h.studyService.DeleteStudy(ctx, study.ID()); err != nil {
 			return result, fmt.Errorf("delete study %s: %w", study.ID(), err)
-		}
-		if modality == "xa" && h.xaCache != nil {
-			_ = h.xaCache.removeLocalStudy(study.StudyID())
 		}
 		result.Deleted++
 	}

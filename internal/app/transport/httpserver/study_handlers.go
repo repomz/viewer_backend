@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,47 @@ import (
 
 	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
+
+func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Request) {
+	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("patient")))
+	query = strings.ReplaceAll(query, "ё", "е")
+	if len([]rune(query)) < 2 {
+		server.BadRequest("invalid-patient-query", errors.New("patient must contain at least two characters"), w, r)
+		return
+	}
+	limit := 20
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		value, err := strconv.Atoi(rawLimit)
+		if err != nil || value < 1 || value > 50 {
+			server.BadRequest("invalid-limit", errors.New("limit must be between 1 and 50"), w, r)
+			return
+		}
+		limit = value
+	}
+	result := make([]httpmodels.StudyResponse, 0, limit)
+	const pageSize = 1000
+	for offset := 0; len(result) < limit; offset += pageSize {
+		studies, err := h.studyService.GetAllStudies(r.Context(), pageSize, offset)
+		if err != nil {
+			server.RespondWithError(err, w, r)
+			return
+		}
+		for _, study := range studies {
+			modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
+			patient := strings.ReplaceAll(strings.ToLower(study.Patient()), "ё", "е")
+			if modality != "xa" && modality != "ct" && strings.Contains(patient, query) {
+				result = append(result, toResponseStudy(study))
+				if len(result) == limit {
+					break
+				}
+			}
+		}
+		if len(studies) < pageSize {
+			break
+		}
+	}
+	server.RespondOK(result, w, r)
+}
 
 func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()

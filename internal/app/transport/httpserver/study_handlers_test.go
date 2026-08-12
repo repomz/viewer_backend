@@ -82,6 +82,26 @@ func TestGetAllStudiesAppliesPagination(t *testing.T) {
 	}
 }
 
+func TestSuggestProtocolStudiesSearchesPatientAndExcludesImaging(t *testing.T) {
+	service := &studyServiceStub{studies: []domain.Study{
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг"}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "XA"}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иванов Иван", StudyType: "цаг"}),
+	}}
+	handler := NewHttpServer(service, nil)
+	request := httptest.NewRequest(http.MethodGet, "/studies/suggest?patient=петр", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.SuggestProtocolStudies(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if count := bytes.Count(recorder.Body.Bytes(), []byte(`"patient"`)); count != 1 {
+		t.Fatalf("suggestions = %d, want one protocol: %s", count, recorder.Body.String())
+	}
+}
+
 func TestCreateStudyPreservesStudyTypeAndTime(t *testing.T) {
 	service := &studyServiceStub{}
 	handler := NewHttpServer(service, nil)

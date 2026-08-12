@@ -216,6 +216,35 @@ func (storage *yandexArchive) readJSON(ctx context.Context, key string) ([]byte,
 	return io.ReadAll(io.LimitReader(response.Body, 16<<20))
 }
 
+func (storage *yandexArchive) downloadFile(ctx context.Context, key, destination string) error {
+	response, err := storage.get(ctx, key)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("Yandex GET %s: HTTP %d", key, response.StatusCode)
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o750); err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(destination), ".download-*.tmp")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	_, copyErr := io.Copy(temporary, response.Body)
+	closeErr := temporary.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(temporaryPath, destination)
+}
+
 func (storage *yandexArchive) uploadStudy(ctx context.Context, root string, manifest xaCacheManifest) error {
 	type upload struct {
 		key         string

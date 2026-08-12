@@ -95,6 +95,7 @@ func run() error {
 	httpServer.SetXACache(xaCache)
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("XA_CACHE_WARM_EXISTING")), "true") {
 		go xaCache.WarmExisting(context.Background())
+		go httpServer.WarmCurrentXACache(context.Background())
 	}
 	retentionCtx, cancelRetention := context.WithCancel(context.Background())
 	defer cancelRetention()
@@ -113,6 +114,7 @@ func run() error {
 	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
 	router.HandleFunc("/studies", httpServer.CreateStudy).Methods(http.MethodPost)
 	router.HandleFunc("/studies/search", httpServer.GetStudiesByFilter).Methods(http.MethodGet)
+	router.HandleFunc("/studies/suggest", httpServer.SuggestProtocolStudies).Methods(http.MethodGet)
 	router.HandleFunc("/studies/patient/{patient}", httpServer.GetStudyByPatient).Methods(http.MethodGet)
 	router.HandleFunc("/studies/{study_id}", httpServer.GetStudyByID).Methods(http.MethodGet)
 	router.HandleFunc("/studies/{study_id}/dicom-link", httpServer.UpdateStudy).Methods(http.MethodPatch)
