@@ -106,7 +106,7 @@ services:
     restart: "no"
 
   backend:
-    image: ${BACKEND_IMAGE:-idrisovmarat/viewer_backend:0.2.4}
+    image: ${BACKEND_IMAGE:-idrisovmarat/viewer_backend:0.2.5}
     build:
       context: .
       dockerfile: Dockerfile
@@ -125,7 +125,7 @@ services:
       XA_CACHE_TIMEOUT_SECONDS: ${XA_CACHE_TIMEOUT_SECONDS:-120}
       XA_CACHE_FFMPEG_PATH: ${XA_CACHE_FFMPEG_PATH:-/usr/bin/ffmpeg}
       XA_CACHE_STUDY_WORKERS: ${XA_CACHE_STUDY_WORKERS:-2}
-      XA_CACHE_FRAME_WORKERS: ${XA_CACHE_FRAME_WORKERS:-3}
+      XA_CACHE_FRAME_WORKERS: ${XA_CACHE_FRAME_WORKERS:-1}
       XA_CACHE_CINE_WORKERS: ${XA_CACHE_CINE_WORKERS:-1}
       XA_CACHE_CINE_CRF: ${XA_CACHE_CINE_CRF:-23}
       XA_CACHE_BUILD_ARCHIVE: ${XA_CACHE_BUILD_ARCHIVE:-false}
@@ -189,7 +189,7 @@ services:
       - pacs
 
   frontend:
-    image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.2.3}
+    image: ${FRONTEND_IMAGE:-idrisovmarat/viewer_frontend:0.2.4}
     environment:
       BACKEND_URL: http://backend:8080
       PACS_URL: http://pacs:8042

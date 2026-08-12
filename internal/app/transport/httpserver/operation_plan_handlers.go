@@ -77,6 +77,14 @@ func loadOperationPlan() (operationPlanFile, error) {
 	if result.Days == nil {
 		result.Days = make(map[string][]operationPlanEntry)
 	}
+	for date, entries := range result.Days {
+		for index := range entries {
+			if strings.EqualFold(strings.Join(strings.Fields(entries[index].Operation), " "), "каг + стент") {
+				entries[index].Operation = "каг стент"
+			}
+		}
+		result.Days[date] = entries
+	}
 	return result, nil
 }
 

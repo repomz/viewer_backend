@@ -1143,12 +1143,12 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 		server.RespondOK(manifest, w, r)
 		return
 	}
-	h.xaCache.Enqueue(studyUID)
 	if err == nil && manifest.Status == "partial" && len(manifest.Series) > 0 &&
 		manifest.Series[0].CinePath != "" && manifest.Series[0].CineBytes > 0 {
 		server.RespondOK(manifest, w, r)
 		return
 	}
+	h.xaCache.Enqueue(studyUID)
 	status := h.xaCache.getStatus(studyUID)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Retry-After", "2")

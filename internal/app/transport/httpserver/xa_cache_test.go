@@ -223,7 +223,7 @@ func TestXACacheEnqueueIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestXACacheServesPartialFirstSeriesWhilePreparationContinues(t *testing.T) {
+func TestXACacheServesPartialFirstSeriesWithoutRestartingFailedPreparation(t *testing.T) {
 	root := t.TempDir()
 	studyUID := "1.2.840.1"
 	cache := &XACache{
@@ -266,8 +266,8 @@ func TestXACacheServesPartialFirstSeriesWhilePreparationContinues(t *testing.T) 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("partial manifest status = %d, expected 200", recorder.Code)
 	}
-	if status := cache.getStatus(studyUID); status.Status != "queued" {
-		t.Fatalf("background status = %q, expected queued", status.Status)
+	if status := cache.getStatus(studyUID); status.Status != "missing" {
+		t.Fatalf("background status = %q, expected missing", status.Status)
 	}
 }
 
