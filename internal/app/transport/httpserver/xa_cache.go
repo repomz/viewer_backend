@@ -971,6 +971,25 @@ func (c *XACache) downloadFrame(ctx context.Context, source xaFrameSource) (int6
 	if info, err := os.Stat(source.path); err == nil && info.Size() > 0 {
 		return info.Size(), nil
 	}
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			case <-time.After(time.Duration(attempt) * 250 * time.Millisecond):
+			}
+		}
+		size, err := c.downloadFrameOnce(ctx, source)
+		if err == nil {
+			return size, nil
+		}
+		lastErr = err
+	}
+	return 0, lastErr
+}
+
+func (c *XACache) downloadFrameOnce(ctx context.Context, source xaFrameSource) (int64, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, source.url, nil)
 	if err != nil {
 		return 0, err
