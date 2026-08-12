@@ -55,15 +55,16 @@ type xaCacheSeries struct {
 }
 
 type xaCacheManifest struct {
-	Status       string          `json:"status"`
-	Profile      string          `json:"profile,omitempty"`
-	StudyUID     string          `json:"study_uid"`
-	Prepared     time.Time       `json:"prepared_at"`
-	FrameCount   int             `json:"frame_count"`
-	TotalBytes   int64           `json:"total_bytes"`
-	ArchivePath  string          `json:"archive_path,omitempty"`
-	ArchiveBytes int64           `json:"archive_bytes,omitempty"`
-	Series       []xaCacheSeries `json:"series"`
+	Status        string          `json:"status"`
+	Profile       string          `json:"profile,omitempty"`
+	StudyUID      string          `json:"study_uid"`
+	Prepared      time.Time       `json:"prepared_at"`
+	FrameCount    int             `json:"frame_count"`
+	TotalBytes    int64           `json:"total_bytes"`
+	ArchivePath   string          `json:"archive_path,omitempty"`
+	ArchiveBytes  int64           `json:"archive_bytes,omitempty"`
+	CloudArchived bool            `json:"cloud_archived,omitempty"`
+	Series        []xaCacheSeries `json:"series"`
 }
 
 type xaCacheStatus struct {
@@ -81,21 +82,24 @@ type xaCacheJob struct {
 
 // XACache prepares Orthanc rendered frames once and serves them as immutable files.
 type XACache struct {
-	root         string
-	pacsBase     string
-	username     string
-	password     string
-	client       *http.Client
-	ffmpegPath   string
-	cineCRF      string
-	workerCount  int
-	frameWorkers int
-	cineWorkers  int
-	buildArchive bool
-	queue        chan string
-	jobs         map[string]*xaCacheJob
-	jobsMu       sync.RWMutex
-	workerOnce   sync.Once
+	root                    string
+	pacsBase                string
+	username                string
+	password                string
+	client                  *http.Client
+	ffmpegPath              string
+	cineCRF                 string
+	workerCount             int
+	frameWorkers            int
+	cineWorkers             int
+	buildArchive            bool
+	cloud                   *yandexArchive
+	deletePACSAfterArchive  bool
+	deleteLocalAfterArchive bool
+	queue                   chan string
+	jobs                    map[string]*xaCacheJob
+	jobsMu                  sync.RWMutex
+	workerOnce              sync.Once
 }
 
 func NewXACacheFromEnvironment() (*XACache, error) {
@@ -116,19 +120,22 @@ func NewXACacheFromEnvironment() (*XACache, error) {
 		return nil, fmt.Errorf("create XA cache directory: %w", err)
 	}
 	cache := &XACache{
-		root:         root,
-		pacsBase:     pacsBase,
-		username:     os.Getenv("REMOTE_PACS_USERNAME"),
-		password:     os.Getenv("REMOTE_PACS_PASSWORD"),
-		client:       &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
-		ffmpegPath:   strings.TrimSpace(os.Getenv("XA_CACHE_FFMPEG_PATH")),
-		cineCRF:      normalizedCineCRF(os.Getenv("XA_CACHE_CINE_CRF")),
-		workerCount:  envPositiveInt("XA_CACHE_STUDY_WORKERS", 2),
-		frameWorkers: envPositiveInt("XA_CACHE_FRAME_WORKERS", 3),
-		cineWorkers:  envPositiveInt("XA_CACHE_CINE_WORKERS", 1),
-		buildArchive: strings.EqualFold(strings.TrimSpace(os.Getenv("XA_CACHE_BUILD_ARCHIVE")), "true"),
-		queue:        make(chan string, 128),
-		jobs:         make(map[string]*xaCacheJob),
+		root:                    root,
+		pacsBase:                pacsBase,
+		username:                os.Getenv("REMOTE_PACS_USERNAME"),
+		password:                os.Getenv("REMOTE_PACS_PASSWORD"),
+		client:                  &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
+		ffmpegPath:              strings.TrimSpace(os.Getenv("XA_CACHE_FFMPEG_PATH")),
+		cineCRF:                 normalizedCineCRF(os.Getenv("XA_CACHE_CINE_CRF")),
+		workerCount:             envPositiveInt("XA_CACHE_STUDY_WORKERS", 2),
+		frameWorkers:            envPositiveInt("XA_CACHE_FRAME_WORKERS", 3),
+		cineWorkers:             envPositiveInt("XA_CACHE_CINE_WORKERS", 1),
+		buildArchive:            strings.EqualFold(strings.TrimSpace(os.Getenv("XA_CACHE_BUILD_ARCHIVE")), "true"),
+		cloud:                   newYandexArchiveFromEnvironment(),
+		deletePACSAfterArchive:  strings.EqualFold(strings.TrimSpace(os.Getenv("XA_ARCHIVE_DELETE_PACS")), "true"),
+		deleteLocalAfterArchive: strings.EqualFold(strings.TrimSpace(os.Getenv("XA_ARCHIVE_DELETE_LOCAL")), "true"),
+		queue:                   make(chan string, 128),
+		jobs:                    make(map[string]*xaCacheJob),
 	}
 	if cache.ffmpegPath == "" {
 		cache.ffmpegPath = "/usr/bin/ffmpeg"
@@ -214,7 +221,7 @@ func (c *XACache) cinesReady(manifest xaCacheManifest) bool {
 			return false
 		}
 		info, err := os.Stat(c.cinePath(manifest.StudyUID, series.CineID))
-		if err != nil || info.Size() != series.CineBytes {
+		if (err != nil || info.Size() != series.CineBytes) && !(manifest.CloudArchived && c.cloud != nil) {
 			return false
 		}
 	}
@@ -230,6 +237,16 @@ func (c *XACache) Enqueue(studyUID string) {
 		return
 	}
 	if manifest, err := c.readManifest(studyUID); err == nil && c.ready(manifest) {
+		if c.cloud != nil && !manifest.CloudArchived {
+			c.jobsMu.Lock()
+			current := c.jobs[studyUID]
+			if current == nil || (current.status.Status != "queued" && current.status.Status != "preparing") {
+				c.jobs[studyUID] = &xaCacheJob{status: xaCacheStatus{Status: "queued", StudyUID: studyUID}}
+				go c.archivePreparedStudy(manifest)
+			}
+			c.jobsMu.Unlock()
+			return
+		}
 		c.setStatus(xaCacheStatus{Status: "ready", StudyUID: studyUID})
 		return
 	}
@@ -249,6 +266,39 @@ func (c *XACache) Enqueue(studyUID string) {
 	default:
 		go func() { c.queue <- studyUID }()
 	}
+}
+
+func (c *XACache) archivePreparedStudy(manifest xaCacheManifest) {
+	c.setStatus(xaCacheStatus{Status: "preparing", StudyUID: manifest.StudyUID})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	err := c.cloud.uploadStudy(ctx, c.root, manifest)
+	cancel()
+	if err != nil {
+		c.fail(manifest.StudyUID, fmt.Errorf("archive XA in Yandex: %w", err))
+		return
+	}
+	manifest.CloudArchived = true
+	if err := c.writeManifest(manifest); err != nil {
+		c.fail(manifest.StudyUID, err)
+		return
+	}
+	if c.deletePACSAfterArchive {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		err := c.deletePACSOnly(ctx, manifest.StudyUID)
+		cancel()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			c.fail(manifest.StudyUID, fmt.Errorf("delete archived XA from PACS: %w", err))
+			return
+		}
+	}
+	if c.deleteLocalAfterArchive {
+		if err := os.RemoveAll(filepath.Join(c.root, manifest.StudyUID)); err != nil {
+			c.fail(manifest.StudyUID, fmt.Errorf("remove archived XA cache: %w", err))
+			return
+		}
+	}
+	c.setStatus(xaCacheStatus{Status: "ready", StudyUID: manifest.StudyUID, FrameCount: manifest.FrameCount, Prepared: manifest.FrameCount, TotalBytes: manifest.TotalBytes})
+	log.Printf("XA archive verified: study_uid=%s", manifest.StudyUID)
 }
 
 func (c *XACache) setStatus(status xaCacheStatus) {
@@ -312,7 +362,7 @@ func (c *XACache) request(ctx context.Context, method, endpoint string) (*http.R
 	return c.client.Do(request)
 }
 
-func (c *XACache) deleteStudy(ctx context.Context, studyUID string) error {
+func (c *XACache) deletePACSOnly(ctx context.Context, studyUID string) error {
 	payload, err := json.Marshal(map[string]any{
 		"Level": "Study",
 		"Query": map[string]string{"StudyInstanceUID": studyUID},
@@ -364,6 +414,13 @@ func (c *XACache) deleteStudy(ctx context.Context, studyUID string) error {
 		if deleteResponse.StatusCode < 200 || deleteResponse.StatusCode >= 300 {
 			return fmt.Errorf("delete PACS study: HTTP %d", deleteResponse.StatusCode)
 		}
+	}
+	return nil
+}
+
+func (c *XACache) deleteStudy(ctx context.Context, studyUID string) error {
+	if err := c.deletePACSOnly(ctx, studyUID); err != nil {
+		return err
 	}
 	if err := os.RemoveAll(filepath.Join(c.root, studyUID)); err != nil {
 		return fmt.Errorf("delete XA cache: %w", err)
@@ -560,6 +617,10 @@ func (c *XACache) prepare(studyUID string) {
 	}
 	if err := c.writeManifest(manifest); err != nil {
 		c.fail(studyUID, err)
+		return
+	}
+	if c.cloud != nil {
+		c.archivePreparedStudy(manifest)
 		return
 	}
 	c.setStatus(xaCacheStatus{
@@ -888,7 +949,19 @@ func (c *XACache) writeManifest(manifest xaCacheManifest) error {
 func (c *XACache) readManifest(studyUID string) (xaCacheManifest, error) {
 	file, err := os.Open(c.manifestPath(studyUID))
 	if err != nil {
-		return xaCacheManifest{}, err
+		if c.cloud == nil {
+			return xaCacheManifest{}, err
+		}
+		payload, cloudErr := c.cloud.readJSON(context.Background(), archiveManifestKey(studyUID))
+		if cloudErr != nil {
+			return xaCacheManifest{}, cloudErr
+		}
+		var manifest xaCacheManifest
+		if decodeErr := json.Unmarshal(payload, &manifest); decodeErr != nil {
+			return xaCacheManifest{}, decodeErr
+		}
+		manifest.CloudArchived = true
+		return manifest, nil
 	}
 	defer file.Close()
 	var manifest xaCacheManifest
@@ -896,6 +969,18 @@ func (c *XACache) readManifest(studyUID string) (xaCacheManifest, error) {
 		return xaCacheManifest{}, err
 	}
 	return manifest, nil
+}
+
+func (c *XACache) cloudArchived(studyUID string) bool {
+	manifest, err := c.readManifest(studyUID)
+	return err == nil && manifest.CloudArchived
+}
+
+func (c *XACache) removeLocalStudy(studyUID string) error {
+	if !validStudyUID(studyUID) {
+		return os.ErrNotExist
+	}
+	return os.RemoveAll(filepath.Join(c.root, studyUID))
 }
 
 func (c *XACache) WarmExisting(ctx context.Context) {
@@ -1009,7 +1094,12 @@ func (h HttpServer) GetXACacheCine(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.Header().Set("Content-Type", "video/mp4")
-	http.ServeFile(w, r, h.xaCache.cinePath(studyUID, cineID))
+	path := h.xaCache.cinePath(studyUID, cineID)
+	if _, err := os.Stat(path); err == nil {
+		http.ServeFile(w, r, path)
+		return
+	}
+	h.xaCache.serveCloudObject(w, r, archiveObjectKey(studyUID, "cines", cineID), "video/mp4")
 }
 
 func (h HttpServer) GetXACacheArchive(w http.ResponseWriter, r *http.Request) {
@@ -1063,5 +1153,35 @@ func (h HttpServer) GetXACacheFrame(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(h.xaCache.root, studyUID, "frames", frameID)
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.Header().Set("Content-Type", "image/jpeg")
-	http.ServeFile(w, r, path)
+	if _, err := os.Stat(path); err == nil {
+		http.ServeFile(w, r, path)
+		return
+	}
+	h.xaCache.serveCloudObject(w, r, archiveObjectKey(studyUID, "frames", frameID), "image/jpeg")
+}
+
+func (c *XACache) serveCloudObject(w http.ResponseWriter, r *http.Request, key, contentType string) {
+	if c.cloud == nil {
+		http.NotFound(w, r)
+		return
+	}
+	response, err := c.cloud.getRange(r.Context(), key, r.Header.Get("Range"))
+	if err != nil {
+		http.Error(w, "XA archive is unavailable", http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
+		http.Error(w, "XA archive object not found", response.StatusCode)
+		return
+	}
+	for _, header := range []string{"Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified"} {
+		if value := response.Header.Get(header); value != "" {
+			w.Header().Set(header, value)
+		}
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.WriteHeader(response.StatusCode)
+	_, _ = io.Copy(w, response.Body)
 }

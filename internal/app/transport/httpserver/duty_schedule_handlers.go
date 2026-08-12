@@ -53,32 +53,10 @@ func dutySchedulePath(month string) string {
 func defaultDutySchedule(month string) dutyScheduleDocument {
 	return dutyScheduleDocument{Month: month, Holidays: []int{}, Groups: []dutyScheduleGroup{
 		{ID: "surgeons", Label: "Хирурги", Staff: []dutyScheduleStaff{
-			{ID: "idrisov", Name: "Идрисов М.З.", Role: "хирург", Shifts: map[string]string{}},
-			{ID: "protasov", Name: "Протасов М.З.", Role: "хирург", Shifts: map[string]string{}},
-			{ID: "starkov", Name: "Старков М.С.", Role: "хирург", Shifts: map[string]string{}},
-			{ID: "tereshin", Name: "Терещин А.А.", Role: "хирург", Shifts: map[string]string{}},
-		}},
-		{ID: "nurses", Label: "Медсёстры", Staff: []dutyScheduleStaff{
-			{ID: "shiryaeva", Name: "Ширяева И.П.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "shipiseva", Name: "Шиписева М.П.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "voronova", Name: "Воронова Ж.А.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "glybova", Name: "Глыбова Л.В.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "ilyina", Name: "Ильина А.А.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "kayrova", Name: "Кайрова С.Л.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "plotnikova", Name: "Плотникова Е.В.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "protasova", Name: "Протасова Е.В.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "sukhanova", Name: "Суханова О.А.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "shishkina", Name: "Шишкина Т.В.", Role: "м/с", Shifts: map[string]string{}},
-			{ID: "shtenina", Name: "Штенина Е.В.", Role: "м/с", Shifts: map[string]string{}},
-		}},
-		{ID: "orderlies", Label: "Санитарки", Staff: []dutyScheduleStaff{
-			{ID: "volnykh", Name: "Вольных Е.Б.", Role: "сан", Shifts: map[string]string{}},
-			{ID: "islamova", Name: "Исламова Е.А.", Role: "сан", Shifts: map[string]string{}},
-			{ID: "polenova", Name: "Поленова А.В.", Role: "сан", Shifts: map[string]string{}},
-			{ID: "magomedova", Name: "Магомедова Н.В.", Role: "сан", Shifts: map[string]string{}},
-			{ID: "pestova", Name: "Пестова Т.В.", Role: "сан", Shifts: map[string]string{}},
-			{ID: "chumel", Name: "Чумель Е.Н.", Role: "сан", Shifts: map[string]string{}},
-			{ID: "amurbieva", Name: "Амурбиева М.Б.", Role: "сан", Shifts: map[string]string{}},
+			{ID: "kirgizov", Name: "Киргизов А.А.", Shifts: map[string]string{}},
+			{ID: "idrisov", Name: "Идрисов М.З.", Shifts: map[string]string{}},
+			{ID: "starkov", Name: "Старков А.С.", Shifts: map[string]string{}},
+			{ID: "shpilevoy", Name: "Шпилевой М.П.", Shifts: map[string]string{}},
 		}},
 	}, UpdatedAt: time.Now().UTC()}
 }
@@ -122,9 +100,13 @@ func normalizeDutySchedule(document *dutyScheduleDocument, month string) error {
 				staff.Shifts = map[string]string{}
 			}
 			for day, value := range staff.Shifts {
-				number, err := strconv.Atoi(day)
+				parts := strings.Split(day, ":")
+				number, err := strconv.Atoi(parts[0])
 				if err != nil || number < 1 || number > 31 {
 					return fmt.Errorf("invalid shift day: %s", day)
+				}
+				if len(parts) > 2 || (len(parts) == 2 && parts[1] != "day" && parts[1] != "duty") {
+					return fmt.Errorf("invalid shift row: %s", day)
 				}
 				value = strings.TrimSpace(value)
 				if len(value) > 12 {
@@ -155,6 +137,19 @@ func loadDutySchedule(month string) (dutyScheduleDocument, error) {
 	if err := json.NewDecoder(file).Decode(&document); err != nil {
 		return dutyScheduleDocument{}, err
 	}
+	canonical := defaultDutySchedule(month)
+	for _, group := range document.Groups {
+		for _, staff := range group.Staff {
+			for index := range canonical.Groups[0].Staff {
+				if canonical.Groups[0].Staff[index].ID == staff.ID {
+					canonical.Groups[0].Staff[index].Shifts = staff.Shifts
+				}
+			}
+		}
+	}
+	canonical.Holidays = document.Holidays
+	canonical.UpdatedAt = document.UpdatedAt
+	document = canonical
 	return document, nil
 }
 

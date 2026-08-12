@@ -101,15 +101,47 @@ func (h HttpServer) runStudyRetention(
 
 	result := studyRetentionResult{Scanned: len(studies)}
 	for _, study := range studies {
-		if !shouldDeleteProtocolStudy(study, plan, now) {
+		modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
+		deleteStudy := shouldDeleteProtocolStudy(study, plan, now)
+		if modality == "xa" {
+			deleteStudy = shouldDeleteArchivedXAStudy(study, now) &&
+				h.xaCache != nil && h.xaCache.cloudArchived(study.StudyID())
+		}
+		if !deleteStudy {
 			continue
 		}
 		if err := h.studyService.DeleteStudy(ctx, study.ID()); err != nil {
 			return result, fmt.Errorf("delete study %s: %w", study.ID(), err)
 		}
+		if modality == "xa" && h.xaCache != nil {
+			_ = h.xaCache.removeLocalStudy(study.StudyID())
+		}
 		result.Deleted++
 	}
 	return result, nil
+}
+
+func shouldDeleteArchivedXAStudy(study domain.Study, now time.Time) bool {
+	if strings.ToLower(strings.TrimSpace(study.StudyType())) != "xa" {
+		return false
+	}
+	start := study.TimeBeginning()
+	if !start.Valid {
+		return false
+	}
+	operationDate := beginningOfDay(start.Time.In(now.Location()))
+	currentMonday := beginningOfDay(monday(now.In(now.Location())))
+	if !operationDate.Before(currentMonday) {
+		return false
+	}
+	previousMonday := currentMonday.AddDate(0, 0, -7)
+	if !operationDate.Before(previousMonday) &&
+		(operationDate.Weekday() == time.Friday ||
+			operationDate.Weekday() == time.Saturday ||
+			operationDate.Weekday() == time.Sunday) {
+		return false
+	}
+	return true
 }
 
 func shouldDeleteProtocolStudy(

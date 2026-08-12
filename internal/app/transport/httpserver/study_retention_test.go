@@ -63,3 +63,22 @@ func TestRunStudyRetentionWaitsUntilMondayMorning(t *testing.T) {
 		t.Fatal("retention must run Monday morning and recover on later weekdays")
 	}
 }
+
+func TestArchivedXARetentionKeepsRecentWeekend(t *testing.T) {
+	location := time.FixedZone("Asia/Tomsk", 7*60*60)
+	now := time.Date(2026, time.August, 10, 10, 0, 0, 0, location)
+	studyAt := func(date time.Time) domain.Study {
+		return domain.ResponseToDBStudy(domain.DBStudyData{
+			ID: uuid.New(), StudyID: "1.2.3", StudyType: "xa", TimeBeginning: date,
+		})
+	}
+	if shouldDeleteArchivedXAStudy(studyAt(time.Date(2026, 8, 7, 12, 0, 0, 0, location)), now) {
+		t.Fatal("previous Friday XA must remain during the grace week")
+	}
+	if !shouldDeleteArchivedXAStudy(studyAt(time.Date(2026, 8, 3, 12, 0, 0, 0, location)), now) {
+		t.Fatal("previous Monday XA must expire")
+	}
+	if !shouldDeleteArchivedXAStudy(studyAt(time.Date(2026, 7, 31, 12, 0, 0, 0, location)), now) {
+		t.Fatal("older Friday XA must expire")
+	}
+}
