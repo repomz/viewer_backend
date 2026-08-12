@@ -514,7 +514,11 @@ func (c *XACache) deletePACSOnly(ctx context.Context, studyUID string) error {
 }
 
 func (c *XACache) deleteStudy(ctx context.Context, studyUID string) error {
-	if err := c.deletePACSOnly(ctx, studyUID); err != nil {
+	// Deletion is intentionally idempotent. A prepared XA can already have
+	// been archived and removed from Orthanc while its application record (or
+	// local cache) still exists. In that case we must still clear the cache so
+	// the caller can finish deleting the database row.
+	if err := c.deletePACSOnly(ctx, studyUID); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	if err := os.RemoveAll(filepath.Join(c.root, studyUID)); err != nil {

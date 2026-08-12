@@ -147,6 +147,37 @@ func TestXACacheDeletesStudyFromOrthancAndLocalCache(t *testing.T) {
 	}
 }
 
+func TestXACacheDeleteIsIdempotentWhenOrthancStudyIsAlreadyGone(t *testing.T) {
+	const studyUID = "1.2.840.113619.2.56"
+	orthanc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/tools/find" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]string{})
+	}))
+	defer orthanc.Close()
+
+	root := t.TempDir()
+	cache := &XACache{
+		root:     root,
+		pacsBase: orthanc.URL,
+		client:   orthanc.Client(),
+		jobs:     make(map[string]*xaCacheJob),
+	}
+	cacheDir := filepath.Join(root, studyUID)
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cache.deleteStudy(context.Background(), studyUID); err != nil {
+		t.Fatalf("idempotent delete: %v", err)
+	}
+	if _, err := os.Stat(cacheDir); !os.IsNotExist(err) {
+		t.Fatalf("cache directory still exists: %v", err)
+	}
+}
+
 func TestXACacheBuildsFastStartCinePerSeries(t *testing.T) {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
