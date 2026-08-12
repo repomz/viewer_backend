@@ -122,21 +122,31 @@ func (storage *yandexArchive) putFile(ctx context.Context, key, path, contentTyp
 	if err != nil {
 		return err
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return err
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		file, openErr := os.Open(path)
+		if openErr != nil {
+			return openErr
+		}
+		response, requestErr := storage.request(ctx, http.MethodPut, key, contentType, digest, file)
+		_ = file.Close()
+		if requestErr == nil {
+			message, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
+			_ = response.Body.Close()
+			if response.StatusCode >= 200 && response.StatusCode < 300 {
+				return storage.verify(ctx, key, size)
+			}
+			lastErr = fmt.Errorf("Yandex PUT %s: HTTP %d: %s", key, response.StatusCode, strings.TrimSpace(string(message)))
+		} else {
+			lastErr = requestErr
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt+1) * 500 * time.Millisecond):
+		}
 	}
-	response, err := storage.request(ctx, http.MethodPut, key, contentType, digest, file)
-	_ = file.Close()
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		message, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
-		return fmt.Errorf("Yandex PUT %s: HTTP %d: %s", key, response.StatusCode, strings.TrimSpace(string(message)))
-	}
-	return storage.verify(ctx, key, size)
+	return lastErr
 }
 
 func (storage *yandexArchive) putBytes(ctx context.Context, key, contentType string, payload []byte) error {
@@ -232,7 +242,7 @@ func (storage *yandexArchive) uploadStudy(ctx context.Context, root string, mani
 	jobs := make(chan upload)
 	errCh := make(chan error, 1)
 	var workers sync.WaitGroup
-	workerCount := 6
+	workerCount := 3
 	if len(uploads) < workerCount {
 		workerCount = len(uploads)
 	}

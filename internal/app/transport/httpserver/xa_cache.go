@@ -96,6 +96,7 @@ type XACache struct {
 	cloud                   *yandexArchive
 	deletePACSAfterArchive  bool
 	deleteLocalAfterArchive bool
+	archiveSlots            chan struct{}
 	queue                   chan string
 	jobs                    map[string]*xaCacheJob
 	jobsMu                  sync.RWMutex
@@ -134,6 +135,7 @@ func NewXACacheFromEnvironment() (*XACache, error) {
 		cloud:                   newYandexArchiveFromEnvironment(),
 		deletePACSAfterArchive:  strings.EqualFold(strings.TrimSpace(os.Getenv("XA_ARCHIVE_DELETE_PACS")), "true"),
 		deleteLocalAfterArchive: strings.EqualFold(strings.TrimSpace(os.Getenv("XA_ARCHIVE_DELETE_LOCAL")), "true"),
+		archiveSlots:            make(chan struct{}, envPositiveInt("XA_ARCHIVE_STUDY_WORKERS", 2)),
 		queue:                   make(chan string, 128),
 		jobs:                    make(map[string]*xaCacheJob),
 	}
@@ -269,6 +271,10 @@ func (c *XACache) Enqueue(studyUID string) {
 }
 
 func (c *XACache) archivePreparedStudy(manifest xaCacheManifest) {
+	if c.archiveSlots != nil {
+		c.archiveSlots <- struct{}{}
+		defer func() { <-c.archiveSlots }()
+	}
 	c.setStatus(xaCacheStatus{Status: "preparing", StudyUID: manifest.StudyUID})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	err := c.cloud.uploadStudy(ctx, c.root, manifest)
