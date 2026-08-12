@@ -106,7 +106,7 @@ services:
     restart: "no"
 
   backend:
-    image: ${BACKEND_IMAGE:-idrisovmarat/viewer_backend:0.2.2}
+    image: ${BACKEND_IMAGE:-idrisovmarat/viewer_backend:0.2.3}
     build:
       context: .
       dockerfile: Dockerfile

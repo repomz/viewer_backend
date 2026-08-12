@@ -45,8 +45,9 @@ func (h HttpServer) WarmCurrentXACache(ctx context.Context) {
 	}
 }
 
-// StartStudyRetention periodically applies the protocol retention policy.
-// It is safe to run repeatedly because studies are soft-deleted.
+// StartStudyRetention periodically removes expired local XA media. Protocol
+// metadata stays in PostgreSQL so the archive search can address every year;
+// the regular /studies endpoint applies the current-week window itself.
 func (h HttpServer) StartStudyRetention(ctx context.Context) {
 	lastRunDate := ""
 	runOnce := func(now time.Time) {
@@ -117,30 +118,14 @@ func (h HttpServer) runStudyRetention(
 		}
 	}
 
-	operationPlanMu.RLock()
-	plan, err := loadOperationPlan()
-	operationPlanMu.RUnlock()
-	if err != nil {
-		return studyRetentionResult{}, fmt.Errorf("load operation plan: %w", err)
-	}
-
 	result := studyRetentionResult{Scanned: len(studies)}
 	for _, study := range studies {
 		modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
-		deleteStudy := shouldDeleteProtocolStudy(study, plan, now)
 		if modality == "xa" {
 			if shouldDeleteArchivedXAStudy(study, now) && h.xaCache != nil && h.xaCache.cloudArchived(study.StudyID()) {
 				_ = h.xaCache.removeLocalStudy(study.StudyID())
 			}
-			continue
 		}
-		if !deleteStudy {
-			continue
-		}
-		if err := h.studyService.DeleteStudy(ctx, study.ID()); err != nil {
-			return result, fmt.Errorf("delete study %s: %w", study.ID(), err)
-		}
-		result.Deleted++
 	}
 	return result, nil
 }
