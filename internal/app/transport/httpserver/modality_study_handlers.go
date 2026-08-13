@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -47,9 +48,22 @@ func (h HttpServer) createModalityStudy(
 	)
 	if err == nil {
 		if r.URL.Query().Get("force_pacs") == "true" {
-			if err := importRemotePACS(r.Context(), request.DicomFiles); err != nil {
-				server.BadGateway("remote-pacs-import", err, w, r)
-				return
+			archived := modality == "XA" && h.xaCache != nil &&
+				h.xaCache.cloudArchived(request.StudyUID)
+			if !archived {
+				complete, checkErr := remotePACSStudyComplete(
+					r.Context(), request.StudyUID, len(request.DicomFiles),
+				)
+				if checkErr != nil {
+					server.BadGateway("remote-pacs-check", checkErr, w, r)
+					return
+				}
+				if !complete {
+					if err := importRemotePACS(r.Context(), request.DicomFiles); err != nil {
+						server.BadGateway("remote-pacs-import", err, w, r)
+						return
+					}
+				}
 			}
 		}
 		if modality == "XA" && h.xaCache != nil {
@@ -99,6 +113,48 @@ func (h HttpServer) createModalityStudy(
 		h.xaCache.Enqueue(request.StudyUID)
 	}
 	server.RespondCreated(toResponseStudy(inserted), w, r)
+}
+
+func remotePACSStudyComplete(
+	ctx context.Context,
+	studyUID string,
+	expectedInstances int,
+) (bool, error) {
+	remoteURL := strings.TrimSpace(os.Getenv("REMOTE_PACS_URL"))
+	if remoteURL == "" {
+		return false, fmt.Errorf("REMOTE_PACS_URL is not configured")
+	}
+	timeoutSeconds, err := strconv.Atoi(os.Getenv("REMOTE_PACS_TIMEOUT_SECONDS"))
+	if err != nil || timeoutSeconds <= 0 {
+		timeoutSeconds = 300
+	}
+	endpoint := strings.TrimSuffix(strings.TrimRight(remoteURL, "/"), "/instances") +
+		"/dicom-web/studies/" + studyUID + "/metadata"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false, fmt.Errorf("build remote PACS check: %w", err)
+	}
+	username := os.Getenv("REMOTE_PACS_USERNAME")
+	password := os.Getenv("REMOTE_PACS_PASSWORD")
+	if username != "" || password != "" {
+		request.SetBasicAuth(username, password)
+	}
+	response, err := (&http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second}).Do(request)
+	if err != nil {
+		return false, fmt.Errorf("check remote PACS study: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return false, fmt.Errorf("check remote PACS study: HTTP %d", response.StatusCode)
+	}
+	var instances []json.RawMessage
+	if err := json.NewDecoder(response.Body).Decode(&instances); err != nil {
+		return false, fmt.Errorf("decode remote PACS study metadata: %w", err)
+	}
+	return expectedInstances > 0 && len(instances) >= expectedInstances, nil
 }
 
 func parseDICOMDateTime(dateValue, timeValue string) time.Time {

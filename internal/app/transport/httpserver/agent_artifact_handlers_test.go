@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
 func TestCreateCTStudyImportsEveryDicomBeforePersisting(t *testing.T) {
@@ -127,6 +128,52 @@ func TestCreateModalityStudyRejectsTruncatedDicomBeforeRemoteImport(t *testing.T
 	}
 	if service.created.StudyID() != "" {
 		t.Fatalf("study was persisted after truncated import: %#v", service.created)
+	}
+}
+
+func TestForcePACSDoesNotReimportCompleteExistingStudy(t *testing.T) {
+	imports := 0
+	remotePACS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/dicom-web/studies/1.2.3/metadata" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[{"00080018":{}},{"00080018":{}}]`))
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.Path == "/instances" {
+			imports++
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer remotePACS.Close()
+	t.Setenv("REMOTE_PACS_URL", remotePACS.URL+"/instances")
+
+	service := &studyServiceStub{existing: domain.ResponseToDBStudy(domain.DBStudyData{
+		StudyID: "1.2.3", Patient: "Иванов И.И.", StudyType: "ct",
+	})}
+	handler := NewHttpServer(service, nil, nil)
+	body := bytes.NewBufferString(`{
+		"study_uid":"1.2.3",
+		"patient":"Иванов И.И.",
+		"study_date":"20260726",
+		"modality":"CT",
+		"dicom_link":"s3://bucket/1.2.3",
+		"dicom_files":[
+			{"name":"1.dcm","size":5,"url":"https://example/1"},
+			{"name":"2.dcm","size":5,"url":"https://example/2"}
+		]
+	}`)
+	request := httptest.NewRequest(http.MethodPost, "/ct_studies?force_pacs=true", body)
+	recorder := httptest.NewRecorder()
+
+	handler.CreateCTStudy(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body)
+	}
+	if imports != 0 {
+		t.Fatalf("imports = %d, want 0", imports)
 	}
 }
 

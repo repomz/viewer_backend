@@ -13,10 +13,11 @@ import (
 )
 
 type studyServiceStub struct {
-	created domain.Study
-	studies []domain.Study
-	limit   int
-	offset  int
+	created  domain.Study
+	existing domain.Study
+	studies  []domain.Study
+	limit    int
+	offset   int
 }
 
 func (s *studyServiceStub) GetAllStudies(_ context.Context, limit, offset int) ([]domain.Study, error) {
@@ -42,6 +43,9 @@ func (s *studyServiceStub) GetStudyByStudyIDAndType(
 	string,
 	string,
 ) (domain.Study, error) {
+	if s.existing.StudyID() != "" {
+		return s.existing, nil
+	}
 	return domain.Study{}, domain.ErrNotFound
 }
 
