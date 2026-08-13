@@ -6,8 +6,7 @@
   "MaximumStorageSize": 0,
   "MaximumPatientCount": 0,
   "Plugins": [
-    "/usr/share/orthanc/plugins",
-    "/usr/local/share/orthanc/plugins"
+    "/usr/local/share/orthanc/plugins/libOrthancDicomWeb.so"
   ],
   "HttpServerEnabled": true,
   "OrthancExplorerEnabled": true,
@@ -50,12 +49,12 @@
   },
   "DicomModalitiesInDatabase": false,
   "DicomScuTimeout": 30,
-  "DicomThreadsCount": 4,
+  "DicomThreadsCount": 2,
   "HttpTimeout": 60,
   "HttpsVerifyPeers": true,
   "KeepAlive": true,
   "TcpNoDelay": true,
-  "HttpThreadsCount": 50,
+  "HttpThreadsCount": 12,
   "StoreDicom": true,
   "QueryRetrieveSize": 100,
   "CaseSensitivePN": false,

@@ -127,7 +127,10 @@ func importRemotePACS(ctx context.Context, files []httpmodels.DicomFile) error {
 	client := &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second}
 	username := os.Getenv("REMOTE_PACS_USERNAME")
 	password := os.Getenv("REMOTE_PACS_PASSWORD")
-	workerCount := min(envPositiveInt("REMOTE_PACS_IMPORT_WORKERS", 4), len(files))
+	// Large XA instances can contain hundreds of uncompressed frames. Orthanc
+	// temporarily needs considerably more memory than the DICOM file size while
+	// storing such an instance, so imports are deliberately serial by default.
+	workerCount := min(envPositiveInt("REMOTE_PACS_IMPORT_WORKERS", 1), len(files))
 	if workerCount == 0 {
 		return nil
 	}
