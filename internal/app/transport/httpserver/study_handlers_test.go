@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -90,6 +91,7 @@ func TestSuggestProtocolStudiesSearchesPatientAndExcludesImaging(t *testing.T) {
 	service := &studyServiceStub{studies: []domain.Study{
 		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг"}),
 		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "XA"}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иван Петрович Петров", StudyType: "каг"}),
 		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иванов Иван", StudyType: "цаг"}),
 	}}
 	handler := NewHttpServer(service, nil)
@@ -103,6 +105,27 @@ func TestSuggestProtocolStudiesSearchesPatientAndExcludesImaging(t *testing.T) {
 	}
 	if count := bytes.Count(recorder.Body.Bytes(), []byte(`"patient"`)); count != 1 {
 		t.Fatalf("suggestions = %d, want one protocol: %s", count, recorder.Body.String())
+	}
+}
+
+func TestSuggestProtocolStudiesMatchesPatientNamePrefixesAndCompactInitials(t *testing.T) {
+	for _, query := range []string{"пет", "Петров ИВ", "петров и. в.", "Петров Иван Вик"} {
+		service := &studyServiceStub{studies: []domain.Study{
+			domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг"}),
+			domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иван Петрович Петров", StudyType: "каг"}),
+		}}
+		handler := NewHttpServer(service, nil)
+		request := httptest.NewRequest(http.MethodGet, "/studies/suggest?patient="+url.QueryEscape(query), nil)
+		recorder := httptest.NewRecorder()
+
+		handler.SuggestProtocolStudies(recorder, request)
+
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("query %q: status = %d, body=%s", query, recorder.Code, recorder.Body.String())
+		}
+		if count := bytes.Count(recorder.Body.Bytes(), []byte(`"patient"`)); count != 1 {
+			t.Fatalf("query %q: suggestions = %d, want one prefix match: %s", query, count, recorder.Body.String())
+		}
 	}
 }
 

@@ -16,8 +16,7 @@ import (
 )
 
 func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Request) {
-	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("patient")))
-	query = strings.ReplaceAll(query, "ё", "е")
+	query := normalizePatientSearch(r.URL.Query().Get("patient"))
 	if len([]rune(query)) < 2 {
 		server.BadRequest("invalid-patient-query", errors.New("patient must contain at least two characters"), w, r)
 		return
@@ -41,8 +40,8 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 		}
 		for _, study := range studies {
 			modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
-			patient := strings.ReplaceAll(strings.ToLower(study.Patient()), "ё", "е")
-			if modality != "xa" && modality != "ct" && strings.Contains(patient, query) {
+			patient := normalizePatientSearch(study.Patient())
+			if modality != "xa" && modality != "ct" && patientSearchPrefixMatches(patient, query) {
 				result = append(result, toResponseStudy(study))
 				if len(result) == limit {
 					break
@@ -54,6 +53,50 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	server.RespondOK(result, w, r)
+}
+
+func normalizePatientSearch(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "ё", "е")
+	value = strings.NewReplacer(".", "", ",", " ", ";", " ").Replace(value)
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func patientSearchPrefixMatches(patient, query string) bool {
+	patientParts := strings.Fields(patient)
+	queryParts := strings.Fields(query)
+	if len(patientParts) == 0 || len(queryParts) == 0 || !strings.HasPrefix(patientParts[0], queryParts[0]) {
+		return false
+	}
+	if len(queryParts) == 1 {
+		return true
+	}
+
+	patientIndex := 1
+	for queryIndex := 1; queryIndex < len(queryParts); queryIndex++ {
+		queryPart := queryParts[queryIndex]
+		queryRunes := []rune(queryPart)
+		remainingPatientParts := len(patientParts) - patientIndex
+		if len(queryParts) == 2 && len(queryRunes) > 1 && len(queryRunes) <= remainingPatientParts {
+			allInitialsMatch := true
+			for index, initial := range queryRunes {
+				patientRunes := []rune(patientParts[patientIndex+index])
+				if len(patientRunes) == 0 || patientRunes[0] != initial {
+					allInitialsMatch = false
+					break
+				}
+			}
+			if allInitialsMatch {
+				patientIndex += len(queryRunes)
+				continue
+			}
+		}
+		if patientIndex >= len(patientParts) || !strings.HasPrefix(patientParts[patientIndex], queryPart) {
+			return false
+		}
+		patientIndex++
+	}
+	return true
 }
 
 func (h HttpServer) GetAllStudies(w http.ResponseWriter, r *http.Request) {
