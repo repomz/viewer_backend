@@ -47,6 +47,8 @@ type xaCacheSeries struct {
 	SeriesUID   string         `json:"series_uid"`
 	Number      int            `json:"number"`
 	Description string         `json:"description,omitempty"`
+	Columns     int            `json:"columns,omitempty"`
+	Rows        int            `json:"rows,omitempty"`
 	FPS         int            `json:"fps"`
 	CineID      string         `json:"cine_id,omitempty"`
 	CinePath    string         `json:"cine_path,omitempty"`
@@ -597,6 +599,8 @@ func (c *XACache) buildManifest(
 				SeriesUID:   seriesUID,
 				Number:      tagInt(instance, "00200011", seriesIndex+1),
 				Description: tagString(instance, "0008103E"),
+				Columns:     tagInt(instance, "00280011", 0),
+				Rows:        tagInt(instance, "00280010", 0),
 				FPS:         max(1, tagInt(instance, "00180040", 12)),
 				Frames:      make([]xaCacheFrame, 0),
 			})

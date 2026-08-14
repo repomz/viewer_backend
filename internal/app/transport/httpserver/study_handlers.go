@@ -31,6 +31,7 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 		limit = value
 	}
 	result := make([]httpmodels.StudyResponse, 0, limit)
+	currentYear := time.Now().In(time.Local).Year()
 	const pageSize = 1000
 	for offset := 0; len(result) < limit; offset += pageSize {
 		studies, err := h.studyService.GetAllStudies(r.Context(), pageSize, offset)
@@ -41,7 +42,10 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 		for _, study := range studies {
 			modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
 			patient := normalizePatientSearch(study.Patient())
-			if modality != "xa" && modality != "ct" && patientSearchPrefixMatches(patient, query) {
+			beginning := study.TimeBeginning()
+			if modality != "xa" && modality != "ct" &&
+				beginning.Valid && beginning.Time.In(time.Local).Year() == currentYear &&
+				patientSearchPrefixMatches(patient, query) {
 				result = append(result, toResponseStudy(study))
 				if len(result) == limit {
 					break

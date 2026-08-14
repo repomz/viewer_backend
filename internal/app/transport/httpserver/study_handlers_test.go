@@ -88,11 +88,13 @@ func TestGetAllStudiesAppliesPagination(t *testing.T) {
 }
 
 func TestSuggestProtocolStudiesSearchesPatientAndExcludesImaging(t *testing.T) {
+	currentDate := time.Date(time.Now().Year(), time.June, 10, 10, 0, 0, 0, time.Local)
 	service := &studyServiceStub{studies: []domain.Study{
-		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг"}),
-		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "XA"}),
-		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иван Петрович Петров", StudyType: "каг"}),
-		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иванов Иван", StudyType: "цаг"}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг", TimeBeginning: currentDate}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "XA", TimeBeginning: currentDate}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иван Петрович Петров", StudyType: "каг", TimeBeginning: currentDate}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иванов Иван", StudyType: "цаг", TimeBeginning: currentDate}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Петр Петрович", StudyType: "каг", TimeBeginning: currentDate.AddDate(-1, 0, 0)}),
 	}}
 	handler := NewHttpServer(service, nil)
 	request := httptest.NewRequest(http.MethodGet, "/studies/suggest?patient=петр", nil)
@@ -109,10 +111,11 @@ func TestSuggestProtocolStudiesSearchesPatientAndExcludesImaging(t *testing.T) {
 }
 
 func TestSuggestProtocolStudiesMatchesPatientNamePrefixesAndCompactInitials(t *testing.T) {
+	currentDate := time.Date(time.Now().Year(), time.June, 10, 10, 0, 0, 0, time.Local)
 	for _, query := range []string{"пет", "Петров ИВ", "петров и. в.", "Петров Иван Вик"} {
 		service := &studyServiceStub{studies: []domain.Study{
-			domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг"}),
-			domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иван Петрович Петров", StudyType: "каг"}),
+			domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг", TimeBeginning: currentDate}),
+			domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Иван Петрович Петров", StudyType: "каг", TimeBeginning: currentDate}),
 		}}
 		handler := NewHttpServer(service, nil)
 		request := httptest.NewRequest(http.MethodGet, "/studies/suggest?patient="+url.QueryEscape(query), nil)
