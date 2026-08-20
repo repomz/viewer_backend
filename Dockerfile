@@ -4,6 +4,9 @@ FROM golang:1.24.3-alpine AS build
 
 WORKDIR /src
 
+ARG VERSION=dev
+ARG VCS_REF=unknown
+
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -11,7 +14,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -X main.version=${VERSION} -X main.revision=${VCS_REF}" \
     -o /out/viewer-backend \
     ./cmd
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -23,6 +24,24 @@ import (
 
 	_ "github.com/lib/pq"
 )
+
+var (
+	version  = "dev"
+	revision = "unknown"
+)
+
+type versionResponse struct {
+	Version  string `json:"version"`
+	Revision string `json:"revision"`
+}
+
+func versionHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(versionResponse{
+		Version:  version,
+		Revision: revision,
+	})
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -107,8 +126,9 @@ func run() error {
 	// create http router
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("DICOM viewer API v0.1"))
+		_, _ = fmt.Fprintf(w, "DICOM viewer API %s", version)
 	}).Methods("GET")
+	router.HandleFunc("/version", versionHandler).Methods(http.MethodGet)
 
 	router.HandleFunc("/studies", httpServer.GetAllStudies).Methods(http.MethodGet)
 	router.HandleFunc("/studies", httpServer.DeleteAllStudies).Methods(http.MethodDelete)
