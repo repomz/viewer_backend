@@ -189,7 +189,7 @@ services:
       - pacs
 
   frontend:
-    image: ${FRONTEND_IMAGE:-ghcr.io/repomz/viewer_frontend:0.2.35}
+    image: ${FRONTEND_IMAGE:-ghcr.io/repomz/viewer_frontend:0.2.36}
     environment:
       BACKEND_URL: http://backend:8080
       PACS_URL: http://pacs:8042
