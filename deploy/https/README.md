@@ -1,7 +1,7 @@
 # HTTPS for the Viewer IP address
 
 The frontend can expose HTTPS on port 443 using a short-lived Let's Encrypt
-certificate for `135.106.130.37`. The certificate is renewed automatically by
+certificate for `135.106.195.161`. The certificate is renewed automatically by
 the systemd timer because IP-address certificates are valid for about six days.
 
 The initial certificate is issued with Certbot webroot validation after the
@@ -16,7 +16,7 @@ docker run --rm \
   certbot/certbot:latest certonly \
   --webroot --webroot-path /var/www/certbot \
   --preferred-profile shortlived \
-  --ip-address 135.106.130.37 \
+  --ip-address 135.106.195.161 \
   --non-interactive --agree-tos --register-unsafely-without-email
 ```
 

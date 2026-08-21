@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-SERVER_IP="${VIEWER_SERVER_IP:-135.106.130.37}"
+SERVER_IP="${VIEWER_SERVER_IP:-135.106.195.161}"
 PROJECT_DIR="${VIEWER_PROJECT_DIR:-/opt/viewer/viewer_backend}"
 CERTBOT_ROOT="${VIEWER_CERTBOT_ROOT:-/opt/viewer/certbot}"
 TLS_DIR="${VIEWER_TLS_DIR:-/opt/viewer/tls}"

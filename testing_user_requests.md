@@ -4,7 +4,7 @@
 компьютера, имеющего доступ к backend:
 
 ```bash
-BACKEND_URL="http://135.106.130.37:8080"
+BACKEND_URL="https://135.106.195.161/api"
 AGENT_ID=2
 ```
 
