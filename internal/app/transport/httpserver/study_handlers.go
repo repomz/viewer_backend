@@ -286,6 +286,7 @@ func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 		server.RespondWithError(err, w, r)
 		return
 	}
+	invalidateStudyAnalysisResponseCaches()
 
 	response := toResponseStudy(insertedStudy)
 
@@ -392,6 +393,7 @@ func (h HttpServer) DeleteStudy(w http.ResponseWriter, r *http.Request) {
 		server.RespondWithError(err, w, r)
 		return
 	}
+	invalidateStudyAnalysisResponseCaches()
 
 	server.RespondOK(map[string]bool{"deleted": true}, w, r)
 }
@@ -408,6 +410,7 @@ func (h HttpServer) DeleteAllStudies(w http.ResponseWriter, r *http.Request) {
 		server.RespondWithError(err, w, r)
 		return
 	}
+	invalidateStudyAnalysisResponseCaches()
 
 	server.RespondOK(map[string]bool{"deleted": true}, w, r)
 }

@@ -28,7 +28,7 @@ services:
       - application
 
   migrations:
-    image: ${BACKEND_MIGRATIONS_IMAGE:-idrisovmarat/viewer_backend-migrations:0.2.0}
+    image: ${BACKEND_MIGRATIONS_IMAGE:-ghcr.io/repomz/viewer_backend-migrations:0.2.9}
     build:
       context: .
       dockerfile: Dockerfile
@@ -106,7 +106,7 @@ services:
     restart: "no"
 
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/repomz/viewer_backend:0.2.8}
+    image: ${BACKEND_IMAGE:-ghcr.io/repomz/viewer_backend:0.2.9}
     build:
       context: .
       dockerfile: Dockerfile

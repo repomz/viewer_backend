@@ -23,12 +23,12 @@ func (a AgentRecordsService) GetAgentIDs(ctx context.Context) ([]int32, error) {
 	return a.repo.GetAgentIDs(ctx)
 }
 
-func (a AgentRecordsService) GetAgentRecordsByAgentID(ctx context.Context, id int32) ([]time.Time, error) {
-	return a.repo.GetAgentRecordsByAgentID(ctx, id)
+func (a AgentRecordsService) GetAgentRecordsByAgentID(ctx context.Context, id, limit int32) ([]time.Time, error) {
+	return a.repo.GetAgentRecordsByAgentID(ctx, id, limit)
 }
 
-func (a AgentRecordsService) GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string) ([]time.Time, error) {
-	return a.repo.GetAgentRecordsByAgentIDandStatus(ctx, id, status)
+func (a AgentRecordsService) GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string, limit int32) ([]time.Time, error) {
+	return a.repo.GetAgentRecordsByAgentIDandStatus(ctx, id, status, limit)
 }
 
 func (a AgentRecordsService) CreateAgentRecord(ctx context.Context, record domain.AgentRecord) error {

@@ -2,16 +2,16 @@ package httpserver
 
 import (
 	"testing"
-	"time"
 )
 
-func TestLimitAgentRecords(t *testing.T) {
-	records := []time.Time{time.Now(), time.Now().Add(-time.Minute)}
-	limited := limitAgentRecords(records, "1")
-	if len(limited) != 1 || !limited[0].Equal(records[0]) {
-		t.Fatalf("unexpected limited records: %#v", limited)
+func TestAgentRecordLimit(t *testing.T) {
+	if got := agentRecordLimit("1"); got != 1 {
+		t.Fatalf("limit = %d, want 1", got)
 	}
-	if got := limitAgentRecords(records, "invalid"); len(got) != len(records) {
-		t.Fatalf("invalid limit changed records: %#v", got)
+	if got := agentRecordLimit("invalid"); got != 1000 {
+		t.Fatalf("invalid limit = %d, want default", got)
+	}
+	if got := agentRecordLimit("5000"); got != 1000 {
+		t.Fatalf("oversized limit = %d, want cap", got)
 	}
 }

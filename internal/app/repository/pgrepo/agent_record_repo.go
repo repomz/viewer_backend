@@ -61,7 +61,7 @@ func (a AgentRecordRepo) CreateAgentRecord(ctx context.Context, agentRecord doma
 
 }
 
-func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, agent_id int32, status string) ([]time.Time, error) {
+func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, agent_id int32, status string, limit int32) ([]time.Time, error) {
 
 	if agent_id <= 0 {
 		return []time.Time{}, fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
@@ -72,8 +72,9 @@ func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, 
 	}
 
 	arg := db.GetAgentRecordsByAgentIDandStatusParams{
-		AgentID: agent_id,
-		Status:  status,
+		AgentID:     agent_id,
+		Status:      status,
+		ResultLimit: limit,
 	}
 
 	times, err := a.query.GetAgentRecordsByAgentIDandStatus(ctx, arg)
@@ -86,12 +87,14 @@ func (a AgentRecordRepo) GetAgentRecordsByAgentIDandStatus(ctx context.Context, 
 
 	return times, nil
 }
-func (a AgentRecordRepo) GetAgentRecordsByAgentID(ctx context.Context, agent_id int32) ([]time.Time, error) {
+func (a AgentRecordRepo) GetAgentRecordsByAgentID(ctx context.Context, agent_id, limit int32) ([]time.Time, error) {
 
 	if agent_id <= 0 {
 		return []time.Time{}, fmt.Errorf("%w: agent_id", domain.ErrInvalidAgentID)
 	}
-	times, err := a.query.GetAgentRecordsByAgentID(ctx, agent_id)
+	times, err := a.query.GetAgentRecordsByAgentID(ctx, db.GetAgentRecordsByAgentIDParams{
+		AgentID: agent_id, ResultLimit: limit,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []time.Time{}, domain.ErrNotFound

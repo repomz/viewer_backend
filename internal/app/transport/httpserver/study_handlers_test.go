@@ -14,14 +14,16 @@ import (
 )
 
 type studyServiceStub struct {
-	created  domain.Study
-	existing domain.Study
-	studies  []domain.Study
-	limit    int
-	offset   int
+	created     domain.Study
+	existing    domain.Study
+	studies     []domain.Study
+	limit       int
+	offset      int
+	getAllCalls int
 }
 
 func (s *studyServiceStub) GetAllStudies(_ context.Context, limit, offset int) ([]domain.Study, error) {
+	s.getAllCalls++
 	s.limit, s.offset = limit, offset
 	return s.studies, nil
 }

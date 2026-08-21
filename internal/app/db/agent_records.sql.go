@@ -69,10 +69,16 @@ const getAgentRecordsByAgentID = `-- name: GetAgentRecordsByAgentID :many
 SELECT sent_at FROM agent_records
 WHERE agent_id = $1
 ORDER BY sent_at DESC
+LIMIT $2
 `
 
-func (q *Queries) GetAgentRecordsByAgentID(ctx context.Context, agentID int32) ([]time.Time, error) {
-	rows, err := q.query(ctx, q.getAgentRecordsByAgentIDStmt, getAgentRecordsByAgentID, agentID)
+type GetAgentRecordsByAgentIDParams struct {
+	AgentID     int32 `json:"agent_id"`
+	ResultLimit int32 `json:"result_limit"`
+}
+
+func (q *Queries) GetAgentRecordsByAgentID(ctx context.Context, arg GetAgentRecordsByAgentIDParams) ([]time.Time, error) {
+	rows, err := q.query(ctx, q.getAgentRecordsByAgentIDStmt, getAgentRecordsByAgentID, arg.AgentID, arg.ResultLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -98,15 +104,17 @@ const getAgentRecordsByAgentIDandStatus = `-- name: GetAgentRecordsByAgentIDandS
 SELECT sent_at FROM agent_records
 WHERE agent_id = $1 AND status = $2
 ORDER BY sent_at DESC
+LIMIT $3
 `
 
 type GetAgentRecordsByAgentIDandStatusParams struct {
-	AgentID int32  `json:"agent_id"`
-	Status  string `json:"status"`
+	AgentID     int32  `json:"agent_id"`
+	Status      string `json:"status"`
+	ResultLimit int32  `json:"result_limit"`
 }
 
 func (q *Queries) GetAgentRecordsByAgentIDandStatus(ctx context.Context, arg GetAgentRecordsByAgentIDandStatusParams) ([]time.Time, error) {
-	rows, err := q.query(ctx, q.getAgentRecordsByAgentIDandStatusStmt, getAgentRecordsByAgentIDandStatus, arg.AgentID, arg.Status)
+	rows, err := q.query(ctx, q.getAgentRecordsByAgentIDandStatusStmt, getAgentRecordsByAgentIDandStatus, arg.AgentID, arg.Status, arg.ResultLimit)
 	if err != nil {
 		return nil, err
 	}

@@ -23,8 +23,8 @@ type StudyRepository interface {
 
 type AgentRecordsRepository interface {
 	GetAgentIDs(ctx context.Context) ([]int32, error)
-	GetAgentRecordsByAgentID(ctx context.Context, id int32) ([]time.Time, error)
-	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string) ([]time.Time, error)
+	GetAgentRecordsByAgentID(ctx context.Context, id, limit int32) ([]time.Time, error)
+	GetAgentRecordsByAgentIDandStatus(ctx context.Context, id int32, status string, limit int32) ([]time.Time, error)
 	CreateAgentRecord(ctx context.Context, record domain.AgentRecord) error
 	DeleteAllAgentRecords(ctx context.Context, agent_id int32) error
 }

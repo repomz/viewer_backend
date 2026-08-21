@@ -290,8 +290,17 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 }
 
 func (h HttpServer) GetOperationStatistics(w http.ResponseWriter, r *http.Request) {
+	year := time.Now().In(time.Local).Year()
+	cacheKey := fmt.Sprintf("%s|%d", vmpStatisticsPath(), year)
+	operationStatisticsResponseCache.Lock()
+	if cached, ok := operationStatisticsResponseCache.entries[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		operationStatisticsResponseCache.Unlock()
+		server.RespondOK(cached.value, w, r)
+		return
+	}
 	studies, err := loadStudiesForAnalysis(r.Context(), h.studyService)
 	if err != nil {
+		operationStatisticsResponseCache.Unlock()
 		server.InternalError("statistics-studies", err, w, r)
 		return
 	}
@@ -299,10 +308,16 @@ func (h HttpServer) GetOperationStatistics(w http.ResponseWriter, r *http.Reques
 	config, err := loadVMPStatisticsConfig()
 	vmpStatisticsMu.RUnlock()
 	if err != nil {
+		operationStatisticsResponseCache.Unlock()
 		server.InternalError("statistics-config", err, w, r)
 		return
 	}
-	server.RespondOK(h.buildOperationStatistics(studies, config, time.Now().In(time.Local).Year()), w, r)
+	response := h.buildOperationStatistics(studies, config, year)
+	operationStatisticsResponseCache.entries[cacheKey] = cachedStatisticsResponse{
+		value: response, expiresAt: time.Now().Add(statisticsCacheTTL),
+	}
+	operationStatisticsResponseCache.Unlock()
+	server.RespondOK(response, w, r)
 }
 
 func (h HttpServer) PutVMPStatisticsConfig(w http.ResponseWriter, r *http.Request) {
@@ -325,5 +340,6 @@ func (h HttpServer) PutVMPStatisticsConfig(w http.ResponseWriter, r *http.Reques
 		server.InternalError("statistics-config", err, w, r)
 		return
 	}
+	invalidateOperationStatisticsResponseCache()
 	h.GetOperationStatistics(w, r)
 }

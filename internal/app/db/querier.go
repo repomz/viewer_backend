@@ -24,7 +24,7 @@ type Querier interface {
 	DeleteUserRequest(ctx context.Context, arg DeleteUserRequestParams) (int64, error)
 	FailUserRequest(ctx context.Context, arg FailUserRequestParams) (UserRequest, error)
 	GetAgentIDs(ctx context.Context) ([]int32, error)
-	GetAgentRecordsByAgentID(ctx context.Context, agentID int32) ([]time.Time, error)
+	GetAgentRecordsByAgentID(ctx context.Context, arg GetAgentRecordsByAgentIDParams) ([]time.Time, error)
 	GetAgentRecordsByAgentIDandStatus(ctx context.Context, arg GetAgentRecordsByAgentIDandStatusParams) ([]time.Time, error)
 	GetAgentRecordsByStatus(ctx context.Context, status string) ([]uuid.UUID, error)
 	GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, error)

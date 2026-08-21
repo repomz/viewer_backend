@@ -4,13 +4,15 @@ VALUES ($1, $2);
 
 -- name: GetAgentRecordsByAgentID :many
 SELECT sent_at FROM agent_records
-WHERE agent_id = $1
-ORDER BY sent_at DESC;
+WHERE agent_id = sqlc.arg(agent_id)
+ORDER BY sent_at DESC
+LIMIT sqlc.arg(result_limit);
 
 -- name: GetAgentRecordsByAgentIDandStatus :many
 SELECT sent_at FROM agent_records
-WHERE agent_id = $1 AND status = $2
-ORDER BY sent_at DESC;
+WHERE agent_id = sqlc.arg(agent_id) AND status = sqlc.arg(status)
+ORDER BY sent_at DESC
+LIMIT sqlc.arg(result_limit);
 
 -- name: GetAgentIDs :many
 SELECT DISTINCT agent_id FROM agent_records

@@ -102,13 +102,13 @@ func (h HttpServer) GetAgentRecordsByAgentID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	records, err := h.agentRecordsService.GetAgentRecordsByAgentID(r.Context(), agentID)
+	limit := agentRecordLimit(query.Get("limit"))
+	records, err := h.agentRecordsService.GetAgentRecordsByAgentID(r.Context(), agentID, limit)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
 	}
 
-	records = limitAgentRecords(records, query.Get("limit"))
 	response := make([]string, 0, len(records))
 	for _, record := range records {
 		response = append(response, record.Format(time.RFC3339))
@@ -142,13 +142,13 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 		return
 	}
 
-	records, err := h.agentRecordsService.GetAgentRecordsByAgentIDandStatus(r.Context(), agentID, agentStatus)
+	limit := agentRecordLimit(query.Get("limit"))
+	records, err := h.agentRecordsService.GetAgentRecordsByAgentIDandStatus(r.Context(), agentID, agentStatus, limit)
 	if err != nil {
 		server.RespondWithError(err, w, r)
 		return
 	}
 
-	records = limitAgentRecords(records, query.Get("limit"))
 	response := make([]string, 0, len(records))
 	for _, record := range records {
 		response = append(response, record.Format(time.RFC3339))
@@ -157,19 +157,15 @@ func (h HttpServer) GetAgentRecordsByAgentIDandStatus(w http.ResponseWriter, r *
 	server.RespondOK(response, w, r)
 }
 
-func limitAgentRecords(records []time.Time, rawLimit string) []time.Time {
-	if strings.TrimSpace(rawLimit) == "" {
-		return records
-	}
+func agentRecordLimit(rawLimit string) int32 {
+	const defaultLimit = 1000
+	const maximumLimit = 1000
 	limit, err := strconv.Atoi(rawLimit)
 	if err != nil || limit < 1 {
-		return records
+		return defaultLimit
 	}
-	if limit > 1000 {
-		limit = 1000
+	if limit > maximumLimit {
+		limit = maximumLimit
 	}
-	if len(records) > limit {
-		return records[:limit]
-	}
-	return records
+	return int32(limit)
 }

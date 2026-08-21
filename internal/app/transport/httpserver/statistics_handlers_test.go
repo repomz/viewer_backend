@@ -1,12 +1,32 @@
 package httpserver
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/repomz/viewer_backend/internal/app/domain"
 )
+
+func TestOperationStatisticsCachesRepeatedReads(t *testing.T) {
+	t.Setenv("PLANS_DIR", t.TempDir())
+	invalidateOperationStatisticsResponseCache()
+	service := &studyServiceStub{}
+	handler := NewHttpServer(service, nil)
+	for range 2 {
+		request := httptest.NewRequest(http.MethodGet, "/statistics/operations", nil)
+		recorder := httptest.NewRecorder()
+		handler.GetOperationStatistics(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+		}
+	}
+	if service.getAllCalls != 1 {
+		t.Fatalf("study loads = %d, want 1", service.getAllCalls)
+	}
+}
 
 func statisticsStudy(id uuid.UUID, patient, operationType, surgeon string) domain.Study {
 	return domain.ResponseToDBStudy(domain.DBStudyData{

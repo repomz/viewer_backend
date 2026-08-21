@@ -60,6 +60,26 @@ func TestOperationPlanRoundTrip(t *testing.T) {
 	}
 }
 
+func TestOperationPlanCachesRepeatedReads(t *testing.T) {
+	t.Setenv("PLANS_DIR", t.TempDir())
+	invalidateOperationPlanResponseCache()
+	service := &studyServiceStub{}
+	handler := NewHttpServer(service, nil)
+	for range 2 {
+		request := httptest.NewRequest(
+			http.MethodGet, "/operation-plan?week_start=2026-08-17", nil,
+		)
+		recorder := httptest.NewRecorder()
+		handler.GetOperationPlan(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+		}
+	}
+	if service.getAllCalls != 1 {
+		t.Fatalf("study loads = %d, want 1", service.getAllCalls)
+	}
+}
+
 func TestPlanPatientMatchesFullNameOrInitials(t *testing.T) {
 	if !planPatientMatches("Иванов И И", "Иванов Иван Иванович") {
 		t.Fatal("surname with initials must match full protocol name")

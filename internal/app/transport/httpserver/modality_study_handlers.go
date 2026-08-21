@@ -103,6 +103,7 @@ func (h HttpServer) createModalityStudy(
 		server.RespondWithError(err, w, r)
 		return
 	}
+	invalidateStudyAnalysisResponseCaches()
 	log.Printf(
 		"remote PACS import completed: modality=%s study_uid=%s files=%d",
 		modality,

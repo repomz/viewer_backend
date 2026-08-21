@@ -274,10 +274,18 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 		}
 		start = monday(parsed)
 	}
+	cacheKey := operationPlanPath() + "|" + start.Format("2006-01-02")
+	operationPlanResponseCache.Lock()
+	if cached, ok := operationPlanResponseCache.entries[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		operationPlanResponseCache.Unlock()
+		server.RespondOK(cached.value, w, r)
+		return
+	}
 	operationPlanMu.RLock()
 	plan, err := loadOperationPlan()
 	operationPlanMu.RUnlock()
 	if err != nil {
+		operationPlanResponseCache.Unlock()
 		server.RespondWithError(fmt.Errorf("load operation plan: %w", err), w, r)
 		return
 	}
@@ -285,6 +293,7 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 	if h.studyService != nil {
 		studies, err = loadStudiesForAnalysis(r.Context(), h.studyService)
 		if err != nil {
+			operationPlanResponseCache.Unlock()
 			server.RespondWithError(fmt.Errorf("load protocols for operation plan: %w", err), w, r)
 			return
 		}
@@ -305,6 +314,10 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 			Entries: responsePlanEntries(entries, studies, planDate),
 		})
 	}
+	operationPlanResponseCache.entries[cacheKey] = cachedOperationPlanResponse{
+		value: response, expiresAt: time.Now().Add(operationPlanCacheTTL),
+	}
+	operationPlanResponseCache.Unlock()
 	server.RespondOK(response, w, r)
 }
 
@@ -369,6 +382,7 @@ func (h HttpServer) PutOperationPlanDay(w http.ResponseWriter, r *http.Request) 
 		server.RespondWithError(fmt.Errorf("save operation plan: %w", err), w, r)
 		return
 	}
+	invalidateOperationPlanResponseCache()
 	planDate, _ := parsePlanDate(date)
 	server.RespondOK(operationPlanDay{Date: date, Entries: responsePlanEntries(entries, nil, planDate)}, w, r)
 }
