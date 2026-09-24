@@ -29,6 +29,7 @@ type Querier interface {
 	GetAgentRecordsByStatus(ctx context.Context, status string) ([]uuid.UUID, error)
 	GetOldRequestsForArchive(ctx context.Context) ([]UserRequest, error)
 	GetProtocolStudiesSince(ctx context.Context, arg GetProtocolStudiesSinceParams) ([]Study, error)
+	GetProtocolStudyCandidates(ctx context.Context, arg GetProtocolStudyCandidatesParams) ([]Study, error)
 	GetStudies(ctx context.Context, arg GetStudiesParams) ([]Study, error)
 	GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTime) ([]Study, error)
 	GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudiesByDateAndStudyTypeParams) ([]Study, error)

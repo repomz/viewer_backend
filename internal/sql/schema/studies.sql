@@ -25,6 +25,12 @@ CREATE INDEX idx_studies_time_surgeon ON studies (time_beginning, surgeon) WHERE
 CREATE INDEX idx_studies_time_type ON studies (time_beginning, study_type) WHERE NOT deleted;
 CREATE INDEX idx_studies_surgeon_type ON studies (surgeon, study_type) WHERE NOT deleted;
 CREATE INDEX idx_studies_time_surgeon_type ON studies (time_beginning, surgeon, study_type) WHERE NOT deleted;
+CREATE INDEX idx_studies_protocol_patient_prefix
+    ON studies (
+        lower(replace(split_part(btrim(patient), ' ', 1), 'ё', 'е')) text_pattern_ops,
+        time_beginning DESC
+    )
+    WHERE deleted = false AND lower(study_type) NOT IN ('xa', 'ct');
 CREATE UNIQUE INDEX uq_studies_active_protocol_identity
     ON studies (lower(btrim(patient)), time_beginning, lower(btrim(name_operation)))
     WHERE deleted = false

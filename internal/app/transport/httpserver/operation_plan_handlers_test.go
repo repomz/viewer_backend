@@ -118,7 +118,7 @@ func TestPlanProtocolsReturnsThreePreviousAndCurrentCompletion(t *testing.T) {
 		})
 	}
 	studies := []domain.Study{
-		makeStudy("Иванов Иван Иванович", time.Date(2026, 1, 1, 10, 0, 0, 0, time.Local)),
+		makeStudy("Иванов Иван Иванович", time.Date(2024, 1, 1, 10, 0, 0, 0, time.Local)),
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 2, 1, 10, 0, 0, 0, time.Local)),
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 1, 10, 0, 0, 0, time.Local)),
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 20, 10, 0, 0, 0, time.Local)),

@@ -11,7 +11,7 @@ RETURNING *;
 -- name: GetStudies :many
 SELECT * FROM studies
 WHERE deleted = false
-ORDER BY created_at DESC, id DESC
+ORDER BY time_beginning DESC NULLS LAST, created_at DESC, id DESC
 LIMIT $1 OFFSET $2;
 
 -- name: GetProtocolStudiesSince :many
@@ -21,6 +21,17 @@ WHERE deleted = false
   AND lower(study_type) NOT IN ('xa', 'ct')
 ORDER BY time_beginning DESC NULLS LAST, created_at DESC, id DESC
 LIMIT $2 OFFSET $3;
+
+-- name: GetProtocolStudyCandidates :many
+SELECT * FROM studies
+WHERE deleted = false
+  AND lower(study_type) NOT IN ('xa', 'ct')
+  AND time_beginning >= sqlc.arg(from_time)
+  AND time_beginning < sqlc.arg(to_time)
+  AND lower(replace(split_part(btrim(patient), ' ', 1), 'ё', 'е'))
+      LIKE sqlc.arg(patient_prefix) || '%'
+ORDER BY time_beginning DESC, created_at DESC, id DESC
+LIMIT sqlc.arg(row_limit);
 
 -- name: GetStudyByID :one
 SELECT * FROM studies

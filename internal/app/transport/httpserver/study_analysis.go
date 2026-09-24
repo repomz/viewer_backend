@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	studyAnalysisPageSize = 1000
+	studyAnalysisPageSize = 25000
 	studyAnalysisMaxRows  = 100000
 )
 

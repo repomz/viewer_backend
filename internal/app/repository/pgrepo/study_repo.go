@@ -63,6 +63,31 @@ func (s StudyRepo) GetProtocolStudiesSince(ctx context.Context, since time.Time,
 	return result, nil
 }
 
+func (s StudyRepo) GetProtocolStudyCandidates(
+	ctx context.Context,
+	patientPrefix string,
+	from, to time.Time,
+	limit int,
+) ([]domain.Study, error) {
+	studies, err := s.query.GetProtocolStudyCandidates(ctx, db.GetProtocolStudyCandidatesParams{
+		FromTime:      sql.NullTime{Time: from, Valid: true},
+		ToTime:        sql.NullTime{Time: to, Valid: true},
+		PatientPrefix: sql.NullString{String: patientPrefix, Valid: true},
+		RowLimit:      int32(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get protocol study candidates: %w", err)
+	}
+	result := make([]domain.Study, len(studies))
+	for index, study := range studies {
+		result[index], err = dbStudyToDomain(study)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create domain study: %w", err)
+		}
+	}
+	return result, nil
+}
+
 func (s StudyRepo) GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error) {
 
 	var studies []db.Study

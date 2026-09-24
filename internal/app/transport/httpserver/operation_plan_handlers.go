@@ -181,7 +181,7 @@ func planProtocols(entry operationPlanEntry, studies []domain.Study, planDate ti
 			continue
 		}
 		beginning := study.TimeBeginning()
-		if !beginning.Valid || beginning.Time.In(time.Local).Year() != planDate.Year() {
+		if !beginning.Valid {
 			continue
 		}
 		studyDate := beginning.Time.In(time.Local)

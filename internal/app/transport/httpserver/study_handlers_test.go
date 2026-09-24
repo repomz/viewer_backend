@@ -33,6 +33,17 @@ func (s *studyServiceStub) GetProtocolStudiesSince(_ context.Context, _ time.Tim
 	return s.studies, nil
 }
 
+func (s *studyServiceStub) GetProtocolStudyCandidates(_ context.Context, _ string, from, to time.Time, _ int) ([]domain.Study, error) {
+	result := make([]domain.Study, 0, len(s.studies))
+	for _, study := range s.studies {
+		beginning := study.TimeBeginning()
+		if beginning.Valid && !beginning.Time.Before(from) && beginning.Time.Before(to) {
+			result = append(result, study)
+		}
+	}
+	return result, nil
+}
+
 func (s *studyServiceStub) GetStudiesByFilter(context.Context, domain.StudyFilter) ([]domain.Study, error) {
 	return nil, nil
 }
@@ -109,6 +120,29 @@ func TestSuggestProtocolStudiesSearchesPatientAndExcludesImaging(t *testing.T) {
 	}
 	if count := bytes.Count(recorder.Body.Bytes(), []byte(`"patient"`)); count != 1 {
 		t.Fatalf("suggestions = %d, want one protocol: %s", count, recorder.Body.String())
+	}
+}
+
+func TestSuggestProtocolStudiesArchiveScopeReturnsOnlyPreviousYears(t *testing.T) {
+	currentDate := time.Date(time.Now().Year(), time.June, 10, 10, 0, 0, 0, time.Local)
+	service := &studyServiceStub{studies: []domain.Study{
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "каг", TimeBeginning: currentDate}),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: uuid.New(), Patient: "Петров Иван Викторович", StudyType: "стент_кор", TimeBeginning: currentDate.AddDate(-2, 0, 0)}),
+	}}
+	handler := NewHttpServer(service, nil)
+	request := httptest.NewRequest(http.MethodGet, "/studies/suggest?patient=петр&scope=archive", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.SuggestProtocolStudies(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if count := bytes.Count(recorder.Body.Bytes(), []byte(`"patient"`)); count != 1 {
+		t.Fatalf("archive suggestions = %d, want one old protocol: %s", count, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"study_type":"стент_кор"`)) {
+		t.Fatalf("archive response does not contain old protocol: %s", recorder.Body.String())
 	}
 }
 

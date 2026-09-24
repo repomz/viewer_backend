@@ -130,10 +130,74 @@ func (q *Queries) GetProtocolStudiesSince(ctx context.Context, arg GetProtocolSt
 	return items, nil
 }
 
+const getProtocolStudyCandidates = `-- name: GetProtocolStudyCandidates :many
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+WHERE deleted = false
+  AND lower(study_type) NOT IN ('xa', 'ct')
+  AND time_beginning >= $1
+  AND time_beginning < $2
+  AND lower(replace(split_part(btrim(patient), ' ', 1), 'ё', 'е'))
+      LIKE $3 || '%'
+ORDER BY time_beginning DESC, created_at DESC, id DESC
+LIMIT $4
+`
+
+type GetProtocolStudyCandidatesParams struct {
+	FromTime      sql.NullTime   `json:"from_time"`
+	ToTime        sql.NullTime   `json:"to_time"`
+	PatientPrefix sql.NullString `json:"patient_prefix"`
+	RowLimit      int32          `json:"row_limit"`
+}
+
+func (q *Queries) GetProtocolStudyCandidates(ctx context.Context, arg GetProtocolStudyCandidatesParams) ([]Study, error) {
+	rows, err := q.query(ctx, q.getProtocolStudyCandidatesStmt, getProtocolStudyCandidates,
+		arg.FromTime,
+		arg.ToTime,
+		arg.PatientPrefix,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Study
+	for rows.Next() {
+		var i Study
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StudyID,
+			&i.Patient,
+			&i.Age,
+			&i.Department,
+			&i.NameOperation,
+			&i.StudyType,
+			&i.DescrOperation,
+			&i.Recommendation,
+			&i.TimeBeginning,
+			&i.TimeDuration,
+			&i.Surgeon,
+			&i.DicomLink,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStudies = `-- name: GetStudies :many
 SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE deleted = false
-ORDER BY created_at DESC, id DESC
+ORDER BY time_beginning DESC NULLS LAST, created_at DESC, id DESC
 LIMIT $1 OFFSET $2
 `
 

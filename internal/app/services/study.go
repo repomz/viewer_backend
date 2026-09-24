@@ -60,6 +60,15 @@ func (s StudyService) GetProtocolStudiesSince(ctx context.Context, since time.Ti
 	return s.repo.GetProtocolStudiesSince(ctx, since, limit, offset)
 }
 
+func (s StudyService) GetProtocolStudyCandidates(
+	ctx context.Context,
+	patientPrefix string,
+	from, to time.Time,
+	limit int,
+) ([]domain.Study, error) {
+	return s.repo.GetProtocolStudyCandidates(ctx, patientPrefix, from, to, limit)
+}
+
 func (s StudyService) GetStudiesByFilter(ctx context.Context, filter domain.StudyFilter) ([]domain.Study, error) {
 	return s.repo.GetStudiesByFilter(ctx, filter)
 }

@@ -22,6 +22,14 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	limit := 20
+	scope := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("scope")))
+	if scope == "" {
+		scope = "year"
+	}
+	if scope != "year" && scope != "archive" && scope != "all" {
+		server.BadRequest("invalid-study-scope", errors.New("scope must be year, archive, or all"), w, r)
+		return
+	}
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 		value, err := strconv.Atoi(rawLimit)
 		if err != nil || value < 1 || value > 50 {
@@ -31,29 +39,29 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 		limit = value
 	}
 	result := make([]httpmodels.StudyResponse, 0, limit)
-	currentYear := time.Now().In(time.Local).Year()
-	const pageSize = 1000
-	for offset := 0; len(result) < limit; offset += pageSize {
-		studies, err := h.studyService.GetAllStudies(r.Context(), pageSize, offset)
-		if err != nil {
-			server.RespondWithError(err, w, r)
-			return
-		}
-		for _, study := range studies {
-			modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
-			patient := normalizePatientSearch(study.Patient())
-			beginning := study.TimeBeginning()
-			if modality != "xa" && modality != "ct" &&
-				beginning.Valid && beginning.Time.In(time.Local).Year() == currentYear &&
-				patientSearchPrefixMatches(patient, query) {
-				result = append(result, toResponseStudy(study))
-				if len(result) == limit {
-					break
-				}
+	now := time.Now().In(time.Local)
+	currentYearStart := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, time.Local)
+	nextYearStart := currentYearStart.AddDate(1, 0, 0)
+	from, to := currentYearStart, nextYearStart
+	if scope == "archive" {
+		from, to = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.Local), currentYearStart
+	} else if scope == "all" {
+		from, to = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.Local), nextYearStart
+	}
+	patientPrefix := strings.Fields(query)[0]
+	studies, err := h.studyService.GetProtocolStudyCandidates(r.Context(), patientPrefix, from, to, 500)
+	if err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+	for _, study := range studies {
+		modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
+		if modality != "xa" && modality != "ct" &&
+			patientSearchPrefixMatches(normalizePatientSearch(study.Patient()), query) {
+			result = append(result, toResponseStudy(study))
+			if len(result) == limit {
+				break
 			}
-		}
-		if len(studies) < pageSize {
-			break
 		}
 	}
 	server.RespondOK(result, w, r)

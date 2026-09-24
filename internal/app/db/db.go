@@ -72,6 +72,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getProtocolStudiesSinceStmt, err = db.PrepareContext(ctx, getProtocolStudiesSince); err != nil {
 		return nil, fmt.Errorf("error preparing query GetProtocolStudiesSince: %w", err)
 	}
+	if q.getProtocolStudyCandidatesStmt, err = db.PrepareContext(ctx, getProtocolStudyCandidates); err != nil {
+		return nil, fmt.Errorf("error preparing query GetProtocolStudyCandidates: %w", err)
+	}
 	if q.getStudiesStmt, err = db.PrepareContext(ctx, getStudies); err != nil {
 		return nil, fmt.Errorf("error preparing query GetStudies: %w", err)
 	}
@@ -206,6 +209,11 @@ func (q *Queries) Close() error {
 	if q.getProtocolStudiesSinceStmt != nil {
 		if cerr := q.getProtocolStudiesSinceStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getProtocolStudiesSinceStmt: %w", cerr)
+		}
+	}
+	if q.getProtocolStudyCandidatesStmt != nil {
+		if cerr := q.getProtocolStudyCandidatesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getProtocolStudyCandidatesStmt: %w", cerr)
 		}
 	}
 	if q.getStudiesStmt != nil {
@@ -348,6 +356,7 @@ type Queries struct {
 	getAgentRecordsByStatusStmt           *sql.Stmt
 	getOldRequestsForArchiveStmt          *sql.Stmt
 	getProtocolStudiesSinceStmt           *sql.Stmt
+	getProtocolStudyCandidatesStmt        *sql.Stmt
 	getStudiesStmt                        *sql.Stmt
 	getStudiesByDateStmt                  *sql.Stmt
 	getStudiesByDateAndStudyTypeStmt      *sql.Stmt
@@ -387,6 +396,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getAgentRecordsByStatusStmt:           q.getAgentRecordsByStatusStmt,
 		getOldRequestsForArchiveStmt:          q.getOldRequestsForArchiveStmt,
 		getProtocolStudiesSinceStmt:           q.getProtocolStudiesSinceStmt,
+		getProtocolStudyCandidatesStmt:        q.getProtocolStudyCandidatesStmt,
 		getStudiesStmt:                        q.getStudiesStmt,
 		getStudiesByDateStmt:                  q.getStudiesByDateStmt,
 		getStudiesByDateAndStudyTypeStmt:      q.getStudiesByDateAndStudyTypeStmt,
