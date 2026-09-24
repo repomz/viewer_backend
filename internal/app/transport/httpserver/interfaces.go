@@ -30,6 +30,11 @@ type AgentRecordsService interface {
 	DeleteAllAgentRecords(ctx context.Context, agent_id int32) error
 }
 
+type AgentLogService interface {
+	Upsert(ctx context.Context, entry domain.AgentLog) error
+	List(ctx context.Context, agentID int32, from, to time.Time) ([]domain.AgentLog, error)
+}
+
 type UserRequestService interface {
 	Create(ctx context.Context, request domain.NewUserRequest) (domain.UserRequest, error)
 	ClaimNext(ctx context.Context, agentID int32) (domain.UserRequest, error)

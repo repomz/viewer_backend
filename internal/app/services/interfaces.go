@@ -29,6 +29,11 @@ type AgentRecordsRepository interface {
 	DeleteAllAgentRecords(ctx context.Context, agent_id int32) error
 }
 
+type AgentLogRepository interface {
+	Upsert(ctx context.Context, entry domain.AgentLog) error
+	List(ctx context.Context, agentID int32, from, to time.Time) ([]domain.AgentLog, error)
+}
+
 type UserRequestRepository interface {
 	Create(ctx context.Context, request domain.NewUserRequest) (domain.UserRequest, error)
 	ClaimNext(ctx context.Context, agentID int32) (domain.UserRequest, error)

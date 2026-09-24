@@ -100,13 +100,16 @@ func run() error {
 	studyRepo := pgrepo.NewStudyRepo(pgDB)
 	agentRecordRepo := pgrepo.NewAgentRecordRepo(pgDB)
 	userRequestRepo := pgrepo.NewUserRequestRepo(pgDB)
+	agentLogRepo := pgrepo.NewAgentLogRepo(sqlDB)
 
 	studyService := services.NewStudyService(studyRepo)
 	agentRecordsService := services.NewAgentRecordsService(agentRecordRepo)
 	userRequestService := services.NewUserRequestService(userRequestRepo)
+	agentLogService := services.NewAgentLogService(agentLogRepo)
 
 	// create http server with application injected
 	httpServer := httpserver.NewHttpServer(studyService, agentRecordsService, userRequestService)
+	httpServer.SetAgentLogService(agentLogService)
 	xaCache, err := httpserver.NewXACacheFromEnvironment()
 	if err != nil {
 		return fmt.Errorf("initialize XA cache: %w", err)
@@ -172,6 +175,8 @@ func run() error {
 	router.HandleFunc("/agent_status/{agent_id}", httpServer.DeleteAllAgentRecords).Methods(http.MethodDelete)
 	router.HandleFunc("/agent_status/searchby_id", httpServer.GetAgentRecordsByAgentID).Methods(http.MethodGet)
 	router.HandleFunc("/agent_status/searchby_status", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
+	router.HandleFunc("/agent_logs", httpServer.CreateAgentLog).Methods(http.MethodPost)
+	router.HandleFunc("/agent_logs", httpServer.GetAgentLogs).Methods(http.MethodGet)
 
 	router.HandleFunc("/user_requests", httpServer.CreateUserRequest).Methods(http.MethodPost)
 	router.HandleFunc("/user_requests", httpServer.ClaimUserRequest).Methods(http.MethodGet)

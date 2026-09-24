@@ -5,7 +5,13 @@ type HttpServer struct {
 	studyService        StudyService
 	agentRecordsService AgentRecordsService
 	userRequestService  UserRequestService
+	agentLogService     AgentLogService
 	xaCache             *XACache
+}
+
+// SetAgentLogService enables collection and browsing of hospital-agent logs.
+func (h *HttpServer) SetAgentLogService(service AgentLogService) {
+	h.agentLogService = service
 }
 
 // NewHttpServer creates a new HTTP server for ports
