@@ -1,6 +1,11 @@
 -- name: CreateStudy :one
 INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (lower(btrim(patient)), time_beginning, lower(btrim(name_operation)))
+WHERE deleted = false
+  AND lower(btrim(study_type)) NOT IN ('xa', 'ct')
+  AND time_beginning IS NOT NULL
+DO UPDATE SET updated_at = studies.updated_at
 RETURNING *;
 
 -- name: GetStudies :many

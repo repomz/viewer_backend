@@ -25,3 +25,8 @@ CREATE INDEX idx_studies_time_surgeon ON studies (time_beginning, surgeon) WHERE
 CREATE INDEX idx_studies_time_type ON studies (time_beginning, study_type) WHERE NOT deleted;
 CREATE INDEX idx_studies_surgeon_type ON studies (surgeon, study_type) WHERE NOT deleted;
 CREATE INDEX idx_studies_time_surgeon_type ON studies (time_beginning, surgeon, study_type) WHERE NOT deleted;
+CREATE UNIQUE INDEX uq_studies_active_protocol_identity
+    ON studies (lower(btrim(patient)), time_beginning, lower(btrim(name_operation)))
+    WHERE deleted = false
+      AND lower(btrim(study_type)) NOT IN ('xa', 'ct')
+      AND time_beginning IS NOT NULL;
