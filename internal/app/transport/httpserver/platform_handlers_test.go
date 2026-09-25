@@ -60,3 +60,23 @@ func TestLoginValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDriveRequiresCloudStorage(t *testing.T) {
+	handler := HttpServer{}
+	cases := []struct {
+		method  string
+		path    string
+		handler http.HandlerFunc
+	}{
+		{http.MethodPost, "/drive", handler.UploadDriveFile},
+		{http.MethodGet, "/drive/file-id", handler.DownloadDriveFile},
+		{http.MethodDelete, "/drive/file-id", handler.DeleteDriveFile},
+	}
+	for _, item := range cases {
+		recorder := httptest.NewRecorder()
+		item.handler(recorder, httptest.NewRequest(item.method, item.path, nil))
+		if recorder.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s status = %d, want %d", item.method, recorder.Code, http.StatusServiceUnavailable)
+		}
+	}
+}

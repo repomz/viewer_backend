@@ -28,7 +28,7 @@ services:
       - application
 
   migrations:
-    image: ${BACKEND_MIGRATIONS_IMAGE:-ghcr.io/repomz/viewer_backend-migrations:0.2.15}
+    image: ${BACKEND_MIGRATIONS_IMAGE:-ghcr.io/repomz/viewer_backend-migrations:0.2.16}
     build:
       context: .
       dockerfile: Dockerfile
@@ -105,28 +105,8 @@ services:
       - plans-data:/app/plans
     restart: "no"
 
-  drive-init:
-    image: alpine:3.22
-    user: "0:0"
-    read_only: true
-    network_mode: none
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - FOWNER
-    security_opt:
-      - no-new-privileges:true
-    command:
-      - sh
-      - -c
-      - chown 10001:10001 /app/user-files && chmod 750 /app/user-files
-    volumes:
-      - drive-data:/app/user-files
-    restart: "no"
-
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/repomz/viewer_backend:0.2.15}
+    image: ${BACKEND_IMAGE:-ghcr.io/repomz/viewer_backend:0.2.16}
     build:
       context: .
       dockerfile: Dockerfile
@@ -142,7 +122,6 @@ services:
       REPORT_AGENT_ID: ${REPORT_AGENT_ID:-2}
       PLANS_DIR: ${PLANS_DIR:-/app/plans}
       XA_CACHE_DIR: ${XA_CACHE_DIR:-/app/xa-cache}
-      DRIVE_DIR: ${DRIVE_DIR:-/app/user-files}
       XA_CACHE_TIMEOUT_SECONDS: ${XA_CACHE_TIMEOUT_SECONDS:-120}
       XA_CACHE_FFMPEG_PATH: ${XA_CACHE_FFMPEG_PATH:-/usr/bin/ffmpeg}
       XA_CACHE_STUDY_WORKERS: ${XA_CACHE_STUDY_WORKERS:-1}
@@ -170,7 +149,6 @@ services:
       - reports-data:/app/reports
       - plans-data:/app/plans
       - xa-cache-data:/app/xa-cache
-      - drive-data:/app/user-files
     ports:
       - "${BIND_ADDRESS:-0.0.0.0}:${BACKEND_PORT:-8080}:8080"
     depends_on:
@@ -181,8 +159,6 @@ services:
       xa-cache-init:
         condition: service_completed_successfully
       plans-init:
-        condition: service_completed_successfully
-      drive-init:
         condition: service_completed_successfully
       pacs:
         condition: service_healthy
@@ -256,4 +232,3 @@ volumes:
   reports-data:
   plans-data:
   xa-cache-data:
-  drive-data:

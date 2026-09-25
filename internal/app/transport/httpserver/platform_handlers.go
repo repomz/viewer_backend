@@ -285,13 +285,6 @@ func (h HttpServer) ChangeCredentials(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(authResponse{Token: token, User: user})
 }
 
-func driveRoot(configured string) string {
-	if strings.TrimSpace(configured) != "" {
-		return configured
-	}
-	return "/app/user-files"
-}
-
 func driveObjectKey(userID int64, fileID string) string {
 	return "viewer-drive/" + strconv.FormatInt(userID, 10) + "/" + fileID
 }
@@ -323,6 +316,10 @@ func (h HttpServer) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h HttpServer) UploadDriveFile(w http.ResponseWriter, r *http.Request) {
+	if h.driveCloud == nil {
+		writePlatformError(w, http.StatusServiceUnavailable, "Облачное хранилище не настроено")
+		return
+	}
 	user, _ := currentAuthenticatedUser(r)
 	r.Body = http.MaxBytesReader(w, r.Body, user.QuotaBytes+(2<<20))
 	reader, err := r.MultipartReader()
@@ -363,25 +360,11 @@ func (h HttpServer) UploadDriveFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := uuid.NewString()
-	storedName := strconv.FormatInt(user.ID, 10) + "/" + id
-	if h.driveCloud != nil {
-		storedName = driveObjectKey(user.ID, id)
-	}
-	root := driveRoot(h.driveDir)
-	userDir := filepath.Join(root, strconv.FormatInt(user.ID, 10))
-	var tempPath, finalPath string
-	var target *os.File
-	if h.driveCloud != nil {
-		target, err = os.CreateTemp("", ".viewer-drive-*.upload")
-		if err == nil {
-			tempPath = target.Name()
-		}
-	} else {
-		if err = os.MkdirAll(userDir, 0750); err == nil {
-			tempPath = filepath.Join(userDir, "."+id+".upload")
-			finalPath = filepath.Join(userDir, id)
-			target, err = os.OpenFile(tempPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		}
+	storedName := driveObjectKey(user.ID, id)
+	target, err := os.CreateTemp("", ".viewer-drive-*.upload")
+	var tempPath string
+	if err == nil {
+		tempPath = target.Name()
 	}
 	if err != nil {
 		writePlatformError(w, http.StatusInternalServerError, "Не удалось сохранить файл")
@@ -420,28 +403,18 @@ func (h HttpServer) UploadDriveFile(w http.ResponseWriter, r *http.Request) {
 		writePlatformError(w, http.StatusRequestEntityTooLarge, "Недостаточно места на диске пользователя")
 		return
 	}
-	if h.driveCloud != nil {
-		if err = h.driveCloud.putFile(r.Context(), storedName, tempPath, contentType); err != nil {
-			_ = os.Remove(tempPath)
-			writePlatformError(w, http.StatusBadGateway, "Облачное хранилище временно недоступно")
-			return
-		}
+	if err = h.driveCloud.putFile(r.Context(), storedName, tempPath, contentType); err != nil {
 		_ = os.Remove(tempPath)
-	} else if err = os.Rename(tempPath, finalPath); err != nil {
-		_ = os.Remove(tempPath)
-		writePlatformError(w, http.StatusInternalServerError, "Не удалось сохранить файл")
+		writePlatformError(w, http.StatusBadGateway, "Облачное хранилище временно недоступно")
 		return
 	}
+	_ = os.Remove(tempPath)
 	_, err = tx.ExecContext(r.Context(), `
 		INSERT INTO drive_files (id, user_id, stored_name, original_name, content_type, size_bytes)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, id, user.ID, storedName, name, contentType, written)
 	if err != nil || tx.Commit() != nil {
-		if h.driveCloud != nil {
-			_ = h.driveCloud.delete(context.Background(), storedName)
-		} else {
-			_ = os.Remove(finalPath)
-		}
+		_ = h.driveCloud.delete(context.Background(), storedName)
 		writePlatformError(w, http.StatusInternalServerError, "Не удалось сохранить файл")
 		return
 	}
@@ -464,60 +437,47 @@ func (h HttpServer) driveFileForUser(ctx context.Context, userID int64, fileID s
 }
 
 func (h HttpServer) DownloadDriveFile(w http.ResponseWriter, r *http.Request) {
+	if h.driveCloud == nil {
+		writePlatformError(w, http.StatusServiceUnavailable, "Облачное хранилище не настроено")
+		return
+	}
 	user, _ := currentAuthenticatedUser(r)
 	file, storedName, err := h.driveFileForUser(r.Context(), user.ID, mux.Vars(r)["file_id"])
 	if err != nil {
 		writePlatformError(w, http.StatusNotFound, "Файл не найден")
 		return
 	}
-	if h.driveCloud != nil {
-		response, cloudErr := h.driveCloud.get(r.Context(), storedName)
-		if cloudErr != nil {
-			writePlatformError(w, http.StatusBadGateway, "Облачное хранилище временно недоступно")
-			return
-		}
-		defer response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			writePlatformError(w, http.StatusNotFound, "Файл не найден")
-			return
-		}
-		w.Header().Set("Content-Type", file.ContentType)
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.Name}))
-		w.Header().Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		_, _ = io.Copy(w, response.Body)
+	response, cloudErr := h.driveCloud.get(r.Context(), storedName)
+	if cloudErr != nil {
+		writePlatformError(w, http.StatusBadGateway, "Облачное хранилище временно недоступно")
 		return
 	}
-	path := filepath.Join(driveRoot(h.driveDir), filepath.FromSlash(storedName))
-	handle, err := os.Open(path)
-	if err != nil {
-		writePlatformError(w, http.StatusNotFound, "Файл не найден")
-		return
-	}
-	defer handle.Close()
-	info, err := handle.Stat()
-	if err != nil {
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
 		writePlatformError(w, http.StatusNotFound, "Файл не найден")
 		return
 	}
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.Name}))
+	w.Header().Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeContent(w, r, file.Name, info.ModTime(), handle)
+	_, _ = io.Copy(w, response.Body)
 }
 
 func (h HttpServer) DeleteDriveFile(w http.ResponseWriter, r *http.Request) {
+	if h.driveCloud == nil {
+		writePlatformError(w, http.StatusServiceUnavailable, "Облачное хранилище не настроено")
+		return
+	}
 	user, _ := currentAuthenticatedUser(r)
 	_, storedName, err := h.driveFileForUser(r.Context(), user.ID, mux.Vars(r)["file_id"])
 	if err != nil {
 		writePlatformError(w, http.StatusNotFound, "Файл не найден")
 		return
 	}
-	if h.driveCloud != nil {
-		if err := h.driveCloud.delete(r.Context(), storedName); err != nil {
-			writePlatformError(w, http.StatusBadGateway, "Облачное хранилище временно недоступно")
-			return
-		}
+	if err := h.driveCloud.delete(r.Context(), storedName); err != nil {
+		writePlatformError(w, http.StatusBadGateway, "Облачное хранилище временно недоступно")
+		return
 	}
 	result, err := h.sqlDB.ExecContext(r.Context(), `DELETE FROM drive_files WHERE id = $1 AND user_id = $2`, mux.Vars(r)["file_id"], user.ID)
 	if err != nil {
@@ -528,9 +488,6 @@ func (h HttpServer) DeleteDriveFile(w http.ResponseWriter, r *http.Request) {
 	if rows == 0 {
 		writePlatformError(w, http.StatusNotFound, "Файл не найден")
 		return
-	}
-	if h.driveCloud == nil {
-		_ = os.Remove(filepath.Join(driveRoot(h.driveDir), filepath.FromSlash(storedName)))
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -639,7 +596,7 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 		writePlatformError(w, http.StatusInternalServerError, "Не удалось получить метрики")
 		return
 	}
-	response.DiskTotal, response.DiskUsed, response.DiskFree, _ = diskUsage(driveRoot(h.driveDir))
+	response.DiskTotal, response.DiskUsed, response.DiskFree, _ = diskUsage("/")
 	response.MemoryTotal, response.MemoryUsed = memoryUsage()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(response)

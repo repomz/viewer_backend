@@ -110,7 +110,7 @@ func run() error {
 	// create http server with application injected
 	httpServer := httpserver.NewHttpServer(studyService, agentRecordsService, userRequestService)
 	httpServer.SetAgentLogService(agentLogService)
-	httpServer.SetPlatformServices(sqlDB, strings.TrimSpace(os.Getenv("DRIVE_DIR")))
+	httpServer.SetPlatformServices(sqlDB)
 	xaCache, err := httpserver.NewXACacheFromEnvironment()
 	if err != nil {
 		return fmt.Errorf("initialize XA cache: %w", err)

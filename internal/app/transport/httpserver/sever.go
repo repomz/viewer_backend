@@ -15,14 +15,12 @@ type HttpServer struct {
 	agentLogService     AgentLogService
 	xaCache             *XACache
 	sqlDB               *sql.DB
-	driveDir            string
 	driveCloud          *yandexArchive
 }
 
 // SetPlatformServices enables authentication, metrics and personal file storage.
-func (h *HttpServer) SetPlatformServices(database *sql.DB, driveDir string) {
+func (h *HttpServer) SetPlatformServices(database *sql.DB) {
 	h.sqlDB = database
-	h.driveDir = driveDir
 	h.driveCloud = newYandexArchiveFromEnvironment()
 	if h.driveCloud != nil {
 		if bucket := strings.TrimSpace(os.Getenv("DRIVE_YANDEX_BUCKET")); bucket != "" {
