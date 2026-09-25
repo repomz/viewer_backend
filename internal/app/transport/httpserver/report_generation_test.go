@@ -26,7 +26,10 @@ func TestBuildOperationsReportUsesPlanToSeparateEmergencyOperations(t *testing.T
 	directory := t.TempDir()
 	t.Setenv("PLANS_DIR", directory)
 	plan := operationPlanFile{Days: map[string][]operationPlanEntry{
-		"2026-08-02": {{Patient: "Иванов И.И.", Department: "кардио 2", Operation: "КАГ"}},
+		"2026-08-02": {
+			{Patient: "Иванов И.И.", Department: "кардио 2", Operation: "КАГ"},
+			{Patient: "Несделан Н.Н.", Department: "кардио 2", Operation: "КАГ"},
+		},
 		"2026-08-03": {{Patient: "Сидоров С.С.", Department: "кардио 1", Operation: "КАГ"}},
 	}}
 	if err := saveOperationPlan(plan); err != nil {
@@ -56,5 +59,9 @@ func TestBuildOperationsReportUsesPlanToSeparateEmergencyOperations(t *testing.T
 	}
 	if report["planned_count"] != 1 || report["emergency_total"] != 1 || report["today_planned_count"] != 1 {
 		t.Fatalf("report counts = %#v", report)
+	}
+	planned := report["planned_operations"].([]map[string]any)
+	if len(planned) != 1 || planned[0]["patient"] != "Иванов Иван" {
+		t.Fatalf("planned operations contain an unperformed plan entry: %#v", planned)
 	}
 }

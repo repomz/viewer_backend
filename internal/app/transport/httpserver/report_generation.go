@@ -175,12 +175,7 @@ func (h HttpServer) buildOperationsReport(
 			key := reportPatientKey(entry.Patient)
 			if study, ok := performedPlanned[dateKey+"|"+key]; ok {
 				planned = append(planned, reportOperation(study))
-				continue
 			}
-			planned = append(planned, map[string]any{
-				"patient": entry.Patient, "age": "", "department": entry.Department,
-				"operation": entry.Operation, "time_beginning": "", "time_duration": "", "surgeon": "",
-			})
 		}
 	}
 
