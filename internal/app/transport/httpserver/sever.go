@@ -1,5 +1,12 @@
 package httpserver
 
+import "database/sql"
+
+import (
+	"os"
+	"strings"
+)
+
 // HttpServer is a HTTP server for ports
 type HttpServer struct {
 	studyService        StudyService
@@ -7,6 +14,21 @@ type HttpServer struct {
 	userRequestService  UserRequestService
 	agentLogService     AgentLogService
 	xaCache             *XACache
+	sqlDB               *sql.DB
+	driveDir            string
+	driveCloud          *yandexArchive
+}
+
+// SetPlatformServices enables authentication, metrics and personal file storage.
+func (h *HttpServer) SetPlatformServices(database *sql.DB, driveDir string) {
+	h.sqlDB = database
+	h.driveDir = driveDir
+	h.driveCloud = newYandexArchiveFromEnvironment()
+	if h.driveCloud != nil {
+		if bucket := strings.TrimSpace(os.Getenv("DRIVE_YANDEX_BUCKET")); bucket != "" {
+			h.driveCloud.bucket = bucket
+		}
+	}
 }
 
 // SetAgentLogService enables collection and browsing of hospital-agent logs.

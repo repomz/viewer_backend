@@ -183,6 +183,19 @@ func (storage *yandexArchive) get(ctx context.Context, key string) (*http.Respon
 	return storage.getRange(ctx, key, "")
 }
 
+func (storage *yandexArchive) delete(ctx context.Context, key string) error {
+	empty := sha256.Sum256(nil)
+	response, err := storage.request(ctx, http.MethodDelete, key, "", hex.EncodeToString(empty[:]), nil)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNoContent && response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("Yandex DELETE %s: HTTP %d", key, response.StatusCode)
+	}
+	return nil
+}
+
 func (storage *yandexArchive) getRange(ctx context.Context, key, byteRange string) (*http.Response, error) {
 	empty := sha256.Sum256(nil)
 	response, err := storage.signedRequest(ctx, http.MethodGet, key, "", hex.EncodeToString(empty[:]), nil, byteRange)

@@ -28,7 +28,7 @@ services:
       - application
 
   migrations:
-    image: ${BACKEND_MIGRATIONS_IMAGE:-ghcr.io/repomz/viewer_backend-migrations:0.2.9}
+    image: ${BACKEND_MIGRATIONS_IMAGE:-ghcr.io/repomz/viewer_backend-migrations:0.2.15}
     build:
       context: .
       dockerfile: Dockerfile
@@ -105,8 +105,28 @@ services:
       - plans-data:/app/plans
     restart: "no"
 
+  drive-init:
+    image: alpine:3.22
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - sh
+      - -c
+      - chown 10001:10001 /app/user-files && chmod 750 /app/user-files
+    volumes:
+      - drive-data:/app/user-files
+    restart: "no"
+
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/repomz/viewer_backend:0.2.9}
+    image: ${BACKEND_IMAGE:-ghcr.io/repomz/viewer_backend:0.2.15}
     build:
       context: .
       dockerfile: Dockerfile
@@ -122,6 +142,7 @@ services:
       REPORT_AGENT_ID: ${REPORT_AGENT_ID:-2}
       PLANS_DIR: ${PLANS_DIR:-/app/plans}
       XA_CACHE_DIR: ${XA_CACHE_DIR:-/app/xa-cache}
+      DRIVE_DIR: ${DRIVE_DIR:-/app/user-files}
       XA_CACHE_TIMEOUT_SECONDS: ${XA_CACHE_TIMEOUT_SECONDS:-120}
       XA_CACHE_FFMPEG_PATH: ${XA_CACHE_FFMPEG_PATH:-/usr/bin/ffmpeg}
       XA_CACHE_STUDY_WORKERS: ${XA_CACHE_STUDY_WORKERS:-1}
@@ -131,6 +152,7 @@ services:
       XA_CACHE_BUILD_ARCHIVE: ${XA_CACHE_BUILD_ARCHIVE:-false}
       XA_CACHE_WARM_EXISTING: ${XA_CACHE_WARM_EXISTING:-false}
       YANDEX_BUCKET: ${YANDEX_BUCKET:-}
+      DRIVE_YANDEX_BUCKET: ${DRIVE_YANDEX_BUCKET:-}
       YANDEX_ENDPOINT: ${YANDEX_ENDPOINT:-https://storage.yandexcloud.net}
       YANDEX_ACCESS_KEY_ID: ${YANDEX_ACCESS_KEY_ID:-}
       YANDEX_SECRET_ACCESS_KEY: ${YANDEX_SECRET_ACCESS_KEY:-}
@@ -148,6 +170,7 @@ services:
       - reports-data:/app/reports
       - plans-data:/app/plans
       - xa-cache-data:/app/xa-cache
+      - drive-data:/app/user-files
     ports:
       - "${BIND_ADDRESS:-0.0.0.0}:${BACKEND_PORT:-8080}:8080"
     depends_on:
@@ -158,6 +181,8 @@ services:
       xa-cache-init:
         condition: service_completed_successfully
       plans-init:
+        condition: service_completed_successfully
+      drive-init:
         condition: service_completed_successfully
       pacs:
         condition: service_healthy
@@ -189,7 +214,7 @@ services:
       - pacs
 
   frontend:
-    image: ${FRONTEND_IMAGE:-ghcr.io/repomz/viewer_frontend:0.2.36}
+    image: ${FRONTEND_IMAGE:-ghcr.io/repomz/viewer_frontend:0.2.51}
     environment:
       BACKEND_URL: http://backend:8080
       PACS_URL: http://pacs:8042
@@ -231,3 +256,4 @@ volumes:
   reports-data:
   plans-data:
   xa-cache-data:
+  drive-data:
