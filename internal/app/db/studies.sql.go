@@ -19,7 +19,20 @@ ON CONFLICT (lower(btrim(patient)), time_beginning, lower(btrim(name_operation))
 WHERE deleted = false
   AND lower(btrim(study_type)) NOT IN ('xa', 'ct')
   AND time_beginning IS NOT NULL
-DO UPDATE SET updated_at = studies.updated_at
+DO UPDATE SET
+    study_id = EXCLUDED.study_id,
+    patient = EXCLUDED.patient,
+    age = EXCLUDED.age,
+    department = EXCLUDED.department,
+    name_operation = EXCLUDED.name_operation,
+    study_type = EXCLUDED.study_type,
+    descr_operation = EXCLUDED.descr_operation,
+    recommendation = EXCLUDED.recommendation,
+    time_beginning = EXCLUDED.time_beginning,
+    time_duration = EXCLUDED.time_duration,
+    surgeon = EXCLUDED.surgeon,
+    dicom_link = COALESCE(NULLIF(EXCLUDED.dicom_link, ''), studies.dicom_link),
+    updated_at = NOW()
 RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted
 `
 
