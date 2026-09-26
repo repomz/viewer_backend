@@ -490,6 +490,7 @@ func (h HttpServer) DeleteDriveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 type loginMetric struct {
+	DiskUsed    int64  `json:"disk_used_bytes"`
 	UserID      int64  `json:"user_id"`
 	DisplayName string `json:"display_name"`
 	Login       string `json:"login"`
@@ -567,7 +568,8 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 	end := start.AddDate(0, 0, 1)
 	rows, err := h.sqlDB.QueryContext(r.Context(), `
-		SELECT u.id, u.display_name, u.login, COUNT(e.id) FILTER (WHERE e.logged_at >= $1 AND e.logged_at < $2), COUNT(e.id)
+		SELECT u.id, u.display_name, u.login, COUNT(e.id) FILTER (WHERE e.logged_at >= $1 AND e.logged_at < $2), COUNT(e.id),
+        (SELECT COALESCE(SUM(f.size_bytes), 0) FROM drive_files f WHERE f.user_id = u.id)
 		FROM app_users u
 		LEFT JOIN login_events e ON e.user_id = u.id
 		WHERE u.role <> 'admin'
@@ -582,7 +584,7 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 	response := platformMetricsResponse{Date: start.Format("2006-01-02"), Logins: make([]loginMetric, 0)}
 	for rows.Next() {
 		var item loginMetric
-		if err := rows.Scan(&item.UserID, &item.DisplayName, &item.Login, &item.Count, &item.Total); err != nil {
+		if err := rows.Scan(&item.UserID, &item.DisplayName, &item.Login, &item.Count, &item.Total, &item.DiskUsed); err != nil {
 			writePlatformError(w, http.StatusInternalServerError, "Не удалось получить метрики")
 			return
 		}
