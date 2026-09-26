@@ -12,7 +12,8 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
-const dutyBoundaryHour = 8
+const dutyBoundaryHour = 7
+const dutyBoundaryMinute = 45
 
 type reportGenerateRequest struct {
 	AgentID  int32  `json:"agent_id"`
@@ -30,7 +31,7 @@ func defaultReportAgentID() int32 {
 }
 
 func lastCompletedDutyEnd(now time.Time) time.Time {
-	end := time.Date(now.Year(), now.Month(), now.Day(), dutyBoundaryHour, 0, 0, 0, now.Location())
+	end := time.Date(now.Year(), now.Month(), now.Day(), dutyBoundaryHour, dutyBoundaryMinute, 0, 0, now.Location())
 	if now.Before(end) {
 		end = end.AddDate(0, 0, -1)
 	}
@@ -61,7 +62,7 @@ func reportPeriod(input reportGenerateRequest, now time.Time) (time.Time, time.T
 		if days > 366 {
 			return time.Time{}, time.Time{}, 0, fmt.Errorf("calendar range cannot exceed 366 days")
 		}
-		start := time.Date(from.Year(), from.Month(), from.Day(), dutyBoundaryHour, 0, 0, 0, time.Local)
+		start := time.Date(from.Year(), from.Month(), from.Day(), dutyBoundaryHour, dutyBoundaryMinute, 0, 0, time.Local)
 		return start, start.AddDate(0, 0, days), days, nil
 	}
 	if input.Days < 1 || input.Days > 7 {
@@ -239,8 +240,10 @@ func (h HttpServer) StartReportScheduler(ctx context.Context) {
 	defer ticker.Stop()
 	lastGeneratedEnd := ""
 	run := func() {
-		now := time.Now()
-		if now.Hour() < dutyBoundaryHour {
+		location, _ := time.LoadLocation("Asia/Tomsk")
+		now := time.Now().In(location)
+		cleanupExpiredReports(now)
+		if now.Before(time.Date(now.Year(), now.Month(), now.Day(), dutyBoundaryHour, dutyBoundaryMinute, 0, 0, location)) {
 			return
 		}
 		endKey := lastCompletedDutyEnd(now).Format(time.RFC3339)

@@ -164,6 +164,7 @@ func (h HttpServer) GenerateReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h HttpServer) GetReports(w http.ResponseWriter, r *http.Request) {
+	cleanupExpiredReports(time.Now())
 	entries, err := os.ReadDir(reportsDirectory())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -216,6 +217,32 @@ func (h HttpServer) GetReports(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	server.RespondOK(reports, w, r)
+}
+
+// Only recognised report documents are removed; unrelated files are preserved.
+func cleanupExpiredReports(now time.Time) {
+	entries, err := os.ReadDir(reportsDirectory())
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(reportsDirectory(), entry.Name())
+		body, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var document reportRequest
+		if json.Unmarshal(body, &document) != nil || document.Report == nil {
+			continue
+		}
+		generated, err := time.Parse(time.RFC3339, document.GeneratedAt)
+		if err == nil && generated.Before(now.AddDate(0, 0, -7)) {
+			_ = os.Remove(path)
+		}
+	}
 }
 
 func (h HttpServer) GetReport(w http.ResponseWriter, r *http.Request) {

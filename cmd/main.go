@@ -134,6 +134,7 @@ func run() error {
 	}).Methods("GET")
 	router.HandleFunc("/version", versionHandler).Methods(http.MethodGet)
 	router.HandleFunc("/auth/login", httpServer.Login).Methods(http.MethodPost)
+	router.HandleFunc("/auth/app-open", httpServer.RequireAuth(httpServer.RecordAppOpen)).Methods(http.MethodPost)
 	router.HandleFunc("/auth/me", httpServer.RequireAuth(httpServer.GetCurrentUser)).Methods(http.MethodGet)
 	router.HandleFunc("/auth/change-credentials", httpServer.RequireAuth(httpServer.ChangeCredentials)).Methods(http.MethodPost)
 	router.HandleFunc("/auth/logout", httpServer.RequireAuth(httpServer.Logout)).Methods(http.MethodPost)
@@ -187,6 +188,7 @@ func run() error {
 	router.HandleFunc("/agent_status/searchby_status", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
 	router.HandleFunc("/agent_logs", httpServer.CreateAgentLog).Methods(http.MethodPost)
 	router.HandleFunc("/agent_logs", httpServer.RequireAdmin(httpServer.GetAgentLogs)).Methods(http.MethodGet)
+	router.HandleFunc("/agent_configurations", httpServer.RequireAdmin(httpServer.GetAgentConfigurations)).Methods(http.MethodGet)
 
 	router.HandleFunc("/user_requests", httpServer.CreateUserRequest).Methods(http.MethodPost)
 	router.HandleFunc("/user_requests", httpServer.ClaimUserRequest).Methods(http.MethodGet)

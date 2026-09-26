@@ -11,7 +11,7 @@ import (
 func TestReportPeriodSupportsDaysAndInclusiveCalendarRange(t *testing.T) {
 	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.Local)
 	start, end, days, err := reportPeriod(reportGenerateRequest{Days: 3}, now)
-	if err != nil || days != 3 || start.Hour() != 8 || end.Day() != 3 {
+	if err != nil || days != 3 || start.Hour() != 7 || start.Minute() != 45 || end.Day() != 3 {
 		t.Fatalf("rolling period = %v %v %d, err=%v", start, end, days, err)
 	}
 	start, end, days, err = reportPeriod(reportGenerateRequest{

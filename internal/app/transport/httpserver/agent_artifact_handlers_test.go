@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/repomz/viewer_backend/internal/app/domain"
@@ -184,11 +185,7 @@ func TestReportsAreStoredAndReturned(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/reports",
-		bytes.NewBufferString(`{
-			"agent_id":2,
-			"generated_at":"2026-07-26T08:00:00Z",
-			"report":{"planned_count":3}
-		}`),
+		bytes.NewBufferString(`{"agent_id":2,"generated_at":"`+time.Now().UTC().Format(time.RFC3339)+`","report":{"planned_count":3}}`),
 	)
 	recorder := httptest.NewRecorder()
 	handler.CreateReport(recorder, request)

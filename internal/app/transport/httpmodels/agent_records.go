@@ -1,6 +1,7 @@
 package httpmodels
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,8 +10,9 @@ import (
 )
 
 type AgentRecordRequest struct {
-	AgentID string `json:"agent_id"`
-	Status  string `json:"status"`
+	AgentID       string          `json:"agent_id"`
+	Status        string          `json:"status"`
+	Configuration json.RawMessage `json:"configuration,omitempty"`
 }
 
 func (a *AgentRecordRequest) Validate() error {

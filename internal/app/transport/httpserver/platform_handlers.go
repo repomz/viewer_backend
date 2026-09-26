@@ -192,9 +192,6 @@ func (h HttpServer) Login(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	token, err := h.createSession(r.Context(), tx, user.ID)
 	if err == nil {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO login_events (user_id) VALUES ($1)`, user.ID)
-	}
-	if err == nil {
 		_, err = tx.ExecContext(r.Context(), `DELETE FROM auth_sessions WHERE expires_at <= NOW()`)
 	}
 	if err != nil || tx.Commit() != nil {
@@ -497,11 +494,13 @@ type loginMetric struct {
 	DisplayName string `json:"display_name"`
 	Login       string `json:"login"`
 	Count       int64  `json:"count"`
+	Total       int64  `json:"total"`
 }
 
 type platformMetricsResponse struct {
 	Date          string        `json:"date"`
 	TotalLogins   int64         `json:"total_logins"`
+	AllTimeLogins int64         `json:"all_time_logins"`
 	Logins        []loginMetric `json:"logins"`
 	ProtocolCount int64         `json:"protocol_count"`
 	DiskTotal     uint64        `json:"disk_total_bytes"`
@@ -568,9 +567,9 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 	end := start.AddDate(0, 0, 1)
 	rows, err := h.sqlDB.QueryContext(r.Context(), `
-		SELECT u.id, u.display_name, u.login, COUNT(e.id)
+		SELECT u.id, u.display_name, u.login, COUNT(e.id) FILTER (WHERE e.logged_at >= $1 AND e.logged_at < $2), COUNT(e.id)
 		FROM app_users u
-		LEFT JOIN login_events e ON e.user_id = u.id AND e.logged_at >= $1 AND e.logged_at < $2
+		LEFT JOIN login_events e ON e.user_id = u.id
 		WHERE u.role <> 'admin'
 		GROUP BY u.id, u.display_name, u.login
 		ORDER BY u.display_name
@@ -583,11 +582,12 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 	response := platformMetricsResponse{Date: start.Format("2006-01-02"), Logins: make([]loginMetric, 0)}
 	for rows.Next() {
 		var item loginMetric
-		if err := rows.Scan(&item.UserID, &item.DisplayName, &item.Login, &item.Count); err != nil {
+		if err := rows.Scan(&item.UserID, &item.DisplayName, &item.Login, &item.Count, &item.Total); err != nil {
 			writePlatformError(w, http.StatusInternalServerError, "Не удалось получить метрики")
 			return
 		}
 		response.TotalLogins += item.Count
+		response.AllTimeLogins += item.Total
 		response.Logins = append(response.Logins, item)
 	}
 	if err := h.sqlDB.QueryRowContext(r.Context(), `

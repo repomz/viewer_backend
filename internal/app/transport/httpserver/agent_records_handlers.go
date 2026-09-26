@@ -81,6 +81,19 @@ func (h HttpServer) CreateAgentRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(agentRequest.Configuration) > 0 && h.sqlDB != nil {
+		config, configErr := safeAgentConfiguration(agentRequest.Configuration)
+		if configErr != nil {
+			server.BadRequest("invalid-configuration", configErr, w, r)
+			return
+		}
+		_, err = h.sqlDB.ExecContext(r.Context(), `INSERT INTO agent_configuration (agent_id, configuration) VALUES ($1, $2)
+    ON CONFLICT (agent_id) DO UPDATE SET configuration = EXCLUDED.configuration, received_at = NOW()`, agentRequest.AgentID, string(config))
+		if err != nil {
+			server.RespondWithError(err, w, r)
+			return
+		}
+	}
 	server.RespondCreated(map[string]bool{"inserted": true}, w, r)
 }
 
