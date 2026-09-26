@@ -21,6 +21,7 @@ import (
 )
 
 type operationPlanEntry struct {
+	BirthDate  string `json:"birth_date,omitempty"`
 	Patient    string `json:"patient"`
 	Department string `json:"department"`
 	Operation  string `json:"operation"`
@@ -186,12 +187,15 @@ func planProtocols(entry operationPlanEntry, studies []domain.Study, planDate ti
 		}
 		studyDate := beginning.Time.In(time.Local)
 		if studyDate.Format("2006-01-02") == planDate.Format("2006-01-02") {
+			if entry.BirthDate != "" && !planBirthMatches(entry.BirthDate, *study) {
+				continue
+			}
 			if completed == nil || studyDate.After(completed.TimeBeginning().Time) {
 				completed = study
 			}
 			continue
 		}
-		if studyDate.Before(planDate) {
+		if studyDate.Before(planDate) && planBirthMatches(entry.BirthDate, *study) {
 			previous = append(previous, *study)
 		}
 	}
@@ -223,7 +227,7 @@ func responsePlanEntries(entries []operationPlanEntry, studies []domain.Study, p
 			operationPlanEntry: entry,
 			PreviousOperations: previous,
 			CompletedOperation: completed,
-			HistorySearched:    planPatientSearchable(entry.Patient),
+			HistorySearched:    planPatientSearchable(entry.Patient) && !parseStudyBirthDate(entry.BirthDate).IsZero(),
 		})
 	}
 	return result
@@ -345,6 +349,14 @@ func (h HttpServer) PutOperationPlanDay(w http.ResponseWriter, r *http.Request) 
 	}
 	entries := make([]operationPlanEntry, 0, len(request.Entries))
 	for _, entry := range request.Entries {
+		entry.BirthDate = strings.TrimSpace(entry.BirthDate)
+		if entry.BirthDate != "" {
+			birth := parseStudyBirthDate(entry.BirthDate)
+			if birth.IsZero() || birth.After(time.Now()) || ageOnDate(birth, time.Now()) > 125 {
+				server.BadRequest("invalid-birth-date", errors.New("invalid birth_date: expected YYYY-MM-DD"), w, r)
+				return
+			}
+		}
 		entry.Patient = strings.TrimSpace(entry.Patient)
 		entry.Department = strings.TrimSpace(entry.Department)
 		entry.Operation = strings.TrimSpace(entry.Operation)

@@ -20,6 +20,7 @@ func domainToDBStudyParams(study domain.Study) db.CreateStudyParams {
 		StudyID:        study.StudyID(),
 		Patient:        study.Patient(),
 		Age:            study.Age(),
+		BirthDate:      study.BirthDate(),
 		Department:     study.Department(),
 		NameOperation:  study.NameOperation(),
 		StudyType:      study.StudyType(),

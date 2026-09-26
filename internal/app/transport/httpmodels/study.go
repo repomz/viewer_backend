@@ -10,6 +10,7 @@ import (
 )
 
 type StudyRequest struct {
+	BirthDate      string    `json:"birth_date"`
 	StudyID        string    `json:"study_id"`
 	Patient        string    `json:"patient"`
 	Age            int32     `json:"age"`
@@ -25,6 +26,12 @@ type StudyRequest struct {
 }
 
 func (s *StudyRequest) Validate() error {
+	if s.BirthDate != "" {
+		birth, err := time.Parse("2006-01-02", s.BirthDate)
+		if err != nil || birth.After(s.TimeBeginning) {
+			return fmt.Errorf("invalid birth_date: expected YYYY-MM-DD not after operation")
+		}
+	}
 	s.StudyID = strings.TrimSpace(s.StudyID)
 	s.Patient = strings.TrimSpace(s.Patient)
 	s.Department = strings.TrimSpace(s.Department)
@@ -81,6 +88,7 @@ func (s *StudyDicomLinkRequest) Validate() error {
 }
 
 type StudyResponse struct {
+	BirthDate      string    `json:"birth_date,omitempty"`
 	ID             uuid.UUID `json:"id"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`

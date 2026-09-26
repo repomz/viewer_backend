@@ -10,6 +10,7 @@ CREATE TABLE studies (
     study_type      TEXT NOT NULL,        
     descr_operation TEXT NOT NULL,
     recommendation  TEXT NOT NULL DEFAULT '',
+    birth_date DATE,
     time_beginning  TIMESTAMP,
     time_duration   INTEGER,
     surgeon         TEXT NOT NULL,

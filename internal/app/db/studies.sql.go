@@ -13,8 +13,8 @@ import (
 )
 
 const createStudy = `-- name: CreateStudy :one
-INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, birth_date)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (lower(btrim(patient)), time_beginning, lower(btrim(name_operation)))
 WHERE deleted = false
   AND lower(btrim(study_type)) NOT IN ('xa', 'ct')
@@ -23,6 +23,7 @@ DO UPDATE SET
     study_id = EXCLUDED.study_id,
     patient = EXCLUDED.patient,
     age = EXCLUDED.age,
+    birth_date = COALESCE(EXCLUDED.birth_date, studies.birth_date),
     department = EXCLUDED.department,
     name_operation = EXCLUDED.name_operation,
     study_type = EXCLUDED.study_type,
@@ -33,7 +34,7 @@ DO UPDATE SET
     surgeon = EXCLUDED.surgeon,
     dicom_link = COALESCE(NULLIF(EXCLUDED.dicom_link, ''), studies.dicom_link),
     updated_at = NOW()
-RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted
+RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted
 `
 
 type CreateStudyParams struct {
@@ -49,6 +50,7 @@ type CreateStudyParams struct {
 	TimeDuration   sql.NullInt32  `json:"time_duration"`
 	Surgeon        string         `json:"surgeon"`
 	DicomLink      sql.NullString `json:"dicom_link"`
+	BirthDate      sql.NullTime   `json:"birth_date"`
 }
 
 func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (Study, error) {
@@ -65,6 +67,7 @@ func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (Study
 		arg.TimeDuration,
 		arg.Surgeon,
 		arg.DicomLink,
+		arg.BirthDate,
 	)
 	var i Study
 	err := row.Scan(
@@ -79,6 +82,7 @@ func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (Study
 		&i.StudyType,
 		&i.DescrOperation,
 		&i.Recommendation,
+		&i.BirthDate,
 		&i.TimeBeginning,
 		&i.TimeDuration,
 		&i.Surgeon,
@@ -89,7 +93,7 @@ func (q *Queries) CreateStudy(ctx context.Context, arg CreateStudyParams) (Study
 }
 
 const getProtocolStudiesSince = `-- name: GetProtocolStudiesSince :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE deleted = false
   AND time_beginning >= $1
   AND lower(study_type) NOT IN ('xa', 'ct')
@@ -124,6 +128,7 @@ func (q *Queries) GetProtocolStudiesSince(ctx context.Context, arg GetProtocolSt
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -144,7 +149,7 @@ func (q *Queries) GetProtocolStudiesSince(ctx context.Context, arg GetProtocolSt
 }
 
 const getProtocolStudyCandidates = `-- name: GetProtocolStudyCandidates :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE deleted = false
   AND lower(study_type) NOT IN ('xa', 'ct')
   AND time_beginning >= $1
@@ -188,6 +193,7 @@ func (q *Queries) GetProtocolStudyCandidates(ctx context.Context, arg GetProtoco
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -208,7 +214,7 @@ func (q *Queries) GetProtocolStudyCandidates(ctx context.Context, arg GetProtoco
 }
 
 const getStudies = `-- name: GetStudies :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE deleted = false
 ORDER BY time_beginning DESC NULLS LAST, created_at DESC, id DESC
 LIMIT $1 OFFSET $2
@@ -240,6 +246,7 @@ func (q *Queries) GetStudies(ctx context.Context, arg GetStudiesParams) ([]Study
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -260,7 +267,7 @@ func (q *Queries) GetStudies(ctx context.Context, arg GetStudiesParams) ([]Study
 }
 
 const getStudiesByDate = `-- name: GetStudiesByDate :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE time_beginning::date = $1 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -286,6 +293,7 @@ func (q *Queries) GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTi
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -306,7 +314,7 @@ func (q *Queries) GetStudiesByDate(ctx context.Context, timeBeginning sql.NullTi
 }
 
 const getStudiesByDateAndStudyType = `-- name: GetStudiesByDateAndStudyType :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE time_beginning::date = $1 AND study_type = $2 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -337,6 +345,7 @@ func (q *Queries) GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudi
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -357,7 +366,7 @@ func (q *Queries) GetStudiesByDateAndStudyType(ctx context.Context, arg GetStudi
 }
 
 const getStudiesByDateAndSurgeon = `-- name: GetStudiesByDateAndSurgeon :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE time_beginning::date = $1 AND surgeon = $2 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -388,6 +397,7 @@ func (q *Queries) GetStudiesByDateAndSurgeon(ctx context.Context, arg GetStudies
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -408,7 +418,7 @@ func (q *Queries) GetStudiesByDateAndSurgeon(ctx context.Context, arg GetStudies
 }
 
 const getStudiesByDateSurgeonStudyType = `-- name: GetStudiesByDateSurgeonStudyType :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE time_beginning::date = $1 AND surgeon = $2 AND study_type = $3 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -440,6 +450,7 @@ func (q *Queries) GetStudiesByDateSurgeonStudyType(ctx context.Context, arg GetS
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -460,7 +471,7 @@ func (q *Queries) GetStudiesByDateSurgeonStudyType(ctx context.Context, arg GetS
 }
 
 const getStudiesByStudyType = `-- name: GetStudiesByStudyType :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE study_type = $1 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -486,6 +497,7 @@ func (q *Queries) GetStudiesByStudyType(ctx context.Context, studyType string) (
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -506,7 +518,7 @@ func (q *Queries) GetStudiesByStudyType(ctx context.Context, studyType string) (
 }
 
 const getStudiesBySurgeon = `-- name: GetStudiesBySurgeon :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE surgeon = $1 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -532,6 +544,7 @@ func (q *Queries) GetStudiesBySurgeon(ctx context.Context, surgeon string) ([]St
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -552,7 +565,7 @@ func (q *Queries) GetStudiesBySurgeon(ctx context.Context, surgeon string) ([]St
 }
 
 const getStudiesBySurgeonAndStudyType = `-- name: GetStudiesBySurgeonAndStudyType :many
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE surgeon = $1 AND study_type = $2 AND deleted = false
 ORDER BY time_beginning DESC, created_at DESC
 `
@@ -583,6 +596,7 @@ func (q *Queries) GetStudiesBySurgeonAndStudyType(ctx context.Context, arg GetSt
 			&i.StudyType,
 			&i.DescrOperation,
 			&i.Recommendation,
+			&i.BirthDate,
 			&i.TimeBeginning,
 			&i.TimeDuration,
 			&i.Surgeon,
@@ -603,7 +617,7 @@ func (q *Queries) GetStudiesBySurgeonAndStudyType(ctx context.Context, arg GetSt
 }
 
 const getStudyByID = `-- name: GetStudyByID :one
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE id = $1 AND deleted = false
 `
 
@@ -622,6 +636,7 @@ func (q *Queries) GetStudyByID(ctx context.Context, id uuid.UUID) (Study, error)
 		&i.StudyType,
 		&i.DescrOperation,
 		&i.Recommendation,
+		&i.BirthDate,
 		&i.TimeBeginning,
 		&i.TimeDuration,
 		&i.Surgeon,
@@ -632,7 +647,7 @@ func (q *Queries) GetStudyByID(ctx context.Context, id uuid.UUID) (Study, error)
 }
 
 const getStudyByPatient = `-- name: GetStudyByPatient :one
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE patient = $1 AND deleted = false
 ORDER BY time_beginning DESC NULLS LAST, created_at DESC
 LIMIT 1
@@ -653,6 +668,7 @@ func (q *Queries) GetStudyByPatient(ctx context.Context, patient string) (Study,
 		&i.StudyType,
 		&i.DescrOperation,
 		&i.Recommendation,
+		&i.BirthDate,
 		&i.TimeBeginning,
 		&i.TimeDuration,
 		&i.Surgeon,
@@ -663,7 +679,7 @@ func (q *Queries) GetStudyByPatient(ctx context.Context, patient string) (Study,
 }
 
 const getStudyByStudyIDAndType = `-- name: GetStudyByStudyIDAndType :one
-SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
+SELECT id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted FROM studies
 WHERE study_id = $1 AND study_type = $2 AND deleted = false
 ORDER BY created_at DESC
 LIMIT 1
@@ -689,6 +705,7 @@ func (q *Queries) GetStudyByStudyIDAndType(ctx context.Context, arg GetStudyBySt
 		&i.StudyType,
 		&i.DescrOperation,
 		&i.Recommendation,
+		&i.BirthDate,
 		&i.TimeBeginning,
 		&i.TimeDuration,
 		&i.Surgeon,
@@ -722,7 +739,7 @@ const updateStudyDicomLink = `-- name: UpdateStudyDicomLink :one
 UPDATE studies
 SET dicom_link = $2, updated_at = NOW()
 WHERE id = $1 AND deleted = false
-RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, deleted
+RETURNING id, created_at, updated_at, study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, birth_date, time_beginning, time_duration, surgeon, dicom_link, deleted
 `
 
 type UpdateStudyDicomLinkParams struct {
@@ -745,6 +762,7 @@ func (q *Queries) UpdateStudyDicomLink(ctx context.Context, arg UpdateStudyDicom
 		&i.StudyType,
 		&i.DescrOperation,
 		&i.Recommendation,
+		&i.BirthDate,
 		&i.TimeBeginning,
 		&i.TimeDuration,
 		&i.Surgeon,

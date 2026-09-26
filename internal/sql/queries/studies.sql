@@ -1,6 +1,6 @@
 -- name: CreateStudy :one
-INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+INSERT INTO studies (study_id, patient, age, department, name_operation, study_type, descr_operation, recommendation, time_beginning, time_duration, surgeon, dicom_link, birth_date)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (lower(btrim(patient)), time_beginning, lower(btrim(name_operation)))
 WHERE deleted = false
   AND lower(btrim(study_type)) NOT IN ('xa', 'ct')
@@ -9,6 +9,7 @@ DO UPDATE SET
     study_id = EXCLUDED.study_id,
     patient = EXCLUDED.patient,
     age = EXCLUDED.age,
+    birth_date = COALESCE(EXCLUDED.birth_date, studies.birth_date),
     department = EXCLUDED.department,
     name_operation = EXCLUDED.name_operation,
     study_type = EXCLUDED.study_type,

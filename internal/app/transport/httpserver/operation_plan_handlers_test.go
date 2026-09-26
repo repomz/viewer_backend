@@ -115,6 +115,7 @@ func TestPlanProtocolsReturnsThreePreviousAndCurrentCompletion(t *testing.T) {
 		return domain.ResponseToDBStudy(domain.DBStudyData{
 			ID: uuid.New(), StudyID: uuid.NewString(), Patient: patient,
 			StudyType: "каг", NameOperation: "КАГ", TimeBeginning: date,
+			BirthDate: parseStudyBirthDate("1950-01-01"),
 		})
 	}
 	studies := []domain.Study{
@@ -125,7 +126,7 @@ func TestPlanProtocolsReturnsThreePreviousAndCurrentCompletion(t *testing.T) {
 		makeStudy("Иванов Иван Иванович", time.Date(2026, 7, 21, 10, 0, 0, 0, time.Local)),
 	}
 	previous, completed := planProtocols(
-		operationPlanEntry{Patient: "Иванов ИИ"}, studies,
+		operationPlanEntry{Patient: "Иванов ИИ", BirthDate: "1950-01-01"}, studies,
 		time.Date(2026, 7, 21, 0, 0, 0, 0, time.Local),
 	)
 	if len(previous) != 3 || completed == nil || completed.TimeBeginning.Day() != 21 {

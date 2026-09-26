@@ -10,6 +10,7 @@ import (
 
 // Study is a domain study.
 type Study struct {
+	birthDate      time.Time
 	id             uuid.UUID
 	studyID        string
 	patient        string
@@ -28,6 +29,7 @@ type Study struct {
 }
 
 type DBStudyData struct {
+	BirthDate      time.Time
 	ID             uuid.UUID
 	StudyID        string
 	Patient        string
@@ -48,6 +50,7 @@ type DBStudyData struct {
 // NewStudy creates a new domain Study from response
 func ResponseToDBStudy(data DBStudyData) Study {
 	return Study{
+		birthDate:      data.BirthDate,
 		id:             data.ID,
 		createdAt:      data.CreatedAt,
 		updatedAt:      data.UpdatedAt,
@@ -69,6 +72,7 @@ func ResponseToDBStudy(data DBStudyData) Study {
 // NewStudy creates a new domain Study from db
 func DBToNewStudy(data db.Study) (Study, error) {
 	return Study{
+		birthDate:      data.BirthDate.Time,
 		id:             data.ID,
 		createdAt:      data.CreatedAt,
 		updatedAt:      data.UpdatedAt,
@@ -106,6 +110,10 @@ func (b Study) StudyID() string {
 
 func (b Study) Patient() string {
 	return b.patient
+}
+
+func (b Study) BirthDate() sql.NullTime {
+	return sql.NullTime{Time: b.birthDate, Valid: !b.birthDate.IsZero()}
 }
 
 func (b Study) Age() sql.NullInt32 {
