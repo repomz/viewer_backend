@@ -91,7 +91,7 @@ func reportOperation(study domain.Study) map[string]any {
 	}
 	timeValue := ""
 	if value := study.TimeBeginning(); value.Valid {
-		timeValue = value.Time.In(time.Local).Format("15:04")
+		timeValue = reportStudyTime(value.Time).Format("15:04")
 	}
 	return map[string]any{
 		"patient":        study.Patient(),
@@ -109,8 +109,15 @@ func isProtocolStudy(study domain.Study) bool {
 	return typeValue != "xa" && typeValue != "ct"
 }
 
+// Protocol timestamps are hospital wall-clock values stored in PostgreSQL as
+// timestamp WITHOUT time zone. lib/pq labels them UTC; converting with In
+// would incorrectly add seven hours and exclude overnight operations.
+func reportStudyTime(value time.Time) time.Time {
+	return time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.Local)
+}
+
 func dutyDate(value time.Time) string {
-	return value.In(time.Local).Add(-dutyBoundaryHour*time.Hour - dutyBoundaryMinute*time.Minute).Format("2006-01-02")
+	return reportStudyTime(value).Add(-dutyBoundaryHour*time.Hour - dutyBoundaryMinute*time.Minute).Format("2006-01-02")
 }
 
 func (h HttpServer) buildOperationsReport(
@@ -150,7 +157,7 @@ func (h HttpServer) buildOperationsReport(
 		if !isProtocolStudy(study) || !study.TimeBeginning().Valid {
 			continue
 		}
-		value := study.TimeBeginning().Time.In(time.Local)
+		value := reportStudyTime(study.TimeBeginning().Time)
 		if !value.Before(start) && value.Before(end) {
 			periodStudies = append(periodStudies, study)
 		}

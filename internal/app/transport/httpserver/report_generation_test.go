@@ -8,6 +8,37 @@ import (
 	"github.com/repomz/viewer_backend/internal/app/domain"
 )
 
+func TestReportIncludesOvernightDatabaseWallClockTimes(t *testing.T) {
+	previousLocation := time.Local
+	time.Local = time.FixedZone("Tomsk", 7*60*60)
+	t.Cleanup(func() { time.Local = previousLocation })
+	t.Setenv("PLANS_DIR", t.TempDir())
+	if err := saveOperationPlan(operationPlanFile{Days: map[string][]operationPlanEntry{}}); err != nil {
+		t.Fatal(err)
+	}
+	studies := []domain.Study{}
+	for _, hour := range []int{1, 2, 3, 4, 8} {
+		studies = append(studies, domain.ResponseToDBStudy(domain.DBStudyData{
+			Patient: "Ночной Пациент", StudyType: "каг", NameOperation: "КАГ",
+			TimeBeginning: time.Date(2026, 9, 30, hour, 25, 0, 0, time.UTC),
+		}))
+	}
+	h := NewHttpServer(&studyServiceStub{studies: studies}, nil)
+	report, err := h.buildOperationsReport(context.Background(),
+		time.Date(2026, 9, 29, 7, 45, 0, 0, time.Local),
+		time.Date(2026, 9, 30, 7, 45, 0, 0, time.Local), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report["emergency_total"] != 4 {
+		t.Fatalf("overnight count = %v", report["emergency_total"])
+	}
+	operations := report["emergency_operations"].([]map[string]any)
+	if operations[0]["time_beginning"] != "01:25" {
+		t.Fatalf("wall-clock time shifted: %v", operations[0]["time_beginning"])
+	}
+}
+
 func TestReportPeriodSupportsDaysAndInclusiveCalendarRange(t *testing.T) {
 	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.Local)
 	start, end, days, err := reportPeriod(reportGenerateRequest{Days: 3}, now)
