@@ -17,7 +17,8 @@ import (
 
 func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Request) {
 	query := normalizePatientSearch(r.URL.Query().Get("patient"))
-	if len([]rune(query)) < 2 {
+	monthBrowse := r.URL.Query().Get("scope") == "year" && r.URL.Query().Get("month") != "" && query == ""
+	if len([]rune(query)) < 2 && !monthBrowse {
 		server.BadRequest("invalid-patient-query", errors.New("patient must contain at least two characters"), w, r)
 		return
 	}
@@ -32,8 +33,8 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 	}
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 		value, err := strconv.Atoi(rawLimit)
-		if err != nil || value < 1 || value > 50 {
-			server.BadRequest("invalid-limit", errors.New("limit must be between 1 and 50"), w, r)
+		if err != nil || value < 1 || value > 500 {
+			server.BadRequest("invalid-limit", errors.New("limit must be between 1 and 500"), w, r)
 			return
 		}
 		limit = value
@@ -43,12 +44,24 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 	currentYearStart := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, time.Local)
 	nextYearStart := currentYearStart.AddDate(1, 0, 0)
 	from, to := currentYearStart, nextYearStart
+	if rawMonth := r.URL.Query().Get("month"); rawMonth != "" {
+		month, err := strconv.Atoi(rawMonth)
+		if err != nil || month < 1 || month > 12 || scope != "year" {
+			server.BadRequest("invalid-month", errors.New("month requires year scope and a value between 1 and 12"), w, r)
+			return
+		}
+		from = time.Date(now.Year(), time.Month(month), 1, 0, 0, 0, 0, time.Local)
+		to = from.AddDate(0, 1, 0)
+	}
 	if scope == "archive" {
 		from, to = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.Local), currentYearStart
 	} else if scope == "all" {
 		from, to = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.Local), nextYearStart
 	}
-	patientPrefix := strings.Fields(query)[0]
+	patientPrefix := ""
+	if fields := strings.Fields(query); len(fields) > 0 {
+		patientPrefix = fields[0]
+	}
 	studies, err := h.studyService.GetProtocolStudyCandidates(r.Context(), patientPrefix, from, to, 500)
 	if err != nil {
 		server.RespondWithError(err, w, r)
@@ -57,7 +70,7 @@ func (h HttpServer) SuggestProtocolStudies(w http.ResponseWriter, r *http.Reques
 	for _, study := range studies {
 		modality := strings.ToLower(strings.TrimSpace(study.StudyType()))
 		if modality != "xa" && modality != "ct" &&
-			patientSearchPrefixMatches(normalizePatientSearch(study.Patient()), query) {
+			(query == "" || patientSearchPrefixMatches(normalizePatientSearch(study.Patient()), query)) {
 			result = append(result, toResponseStudy(study))
 			if len(result) == limit {
 				break

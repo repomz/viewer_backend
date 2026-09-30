@@ -22,6 +22,27 @@ type studyServiceStub struct {
 	getAllCalls int
 }
 
+func TestYearSearchMonthIncludesAllMatchingMonthProtocols(t *testing.T) {
+	year := time.Now().In(time.Local).Year()
+	service := &studyServiceStub{studies: []domain.Study{
+		domain.ResponseToDBStudy(domain.DBStudyData{Patient: "Тестов Иван Иванович", StudyType: "каг", TimeBeginning: time.Date(year, 9, 10, 10, 0, 0, 0, time.Local)}),
+		domain.ResponseToDBStudy(domain.DBStudyData{Patient: "Тестов Иван Иванович", StudyType: "каг", TimeBeginning: time.Date(year, 8, 10, 10, 0, 0, 0, time.Local)}),
+	}}
+	handler := NewHttpServer(service, nil)
+	response := httptest.NewRecorder()
+	handler.SuggestProtocolStudies(response, httptest.NewRequest(http.MethodGet, "/studies/suggest?scope=year&month=9&limit=500", nil))
+	if response.Code != http.StatusOK || bytes.Count(response.Body.Bytes(), []byte("time_beginning")) != 1 {
+		t.Fatalf("month response %d %s", response.Code, response.Body.String())
+	}
+	for _, query := range []string{"scope=year&month=13&patient=Test", "scope=archive&month=9&patient=Test"} {
+		response = httptest.NewRecorder()
+		handler.SuggestProtocolStudies(response, httptest.NewRequest(http.MethodGet, "/studies/suggest?"+query, nil))
+		if response.Code != http.StatusBadRequest {
+			t.Fatal("invalid month accepted")
+		}
+	}
+}
+
 func (s *studyServiceStub) GetAllStudies(_ context.Context, limit, offset int) ([]domain.Study, error) {
 	s.getAllCalls++
 	s.limit, s.offset = limit, offset

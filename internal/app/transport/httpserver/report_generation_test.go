@@ -37,7 +37,7 @@ func TestBuildOperationsReportUsesPlanToSeparateEmergencyOperations(t *testing.T
 	}
 	service := &studyServiceStub{studies: []domain.Study{
 		domain.ResponseToDBStudy(domain.DBStudyData{
-			StudyID: "1", Patient: "Иванов Иван", Age: 50, Department: "кардио 2",
+			StudyID: "1", Patient: "Иванов Иван Иванович", Age: 50, Department: "кардио 2",
 			NameOperation: "КАГ", StudyType: "каг",
 			TimeBeginning: time.Date(2026, 8, 2, 10, 0, 0, 0, time.Local), Surgeon: "Врач",
 		}),
@@ -61,7 +61,7 @@ func TestBuildOperationsReportUsesPlanToSeparateEmergencyOperations(t *testing.T
 		t.Fatalf("report counts = %#v", report)
 	}
 	planned := report["planned_operations"].([]map[string]any)
-	if len(planned) != 1 || planned[0]["patient"] != "Иванов Иван" {
+	if len(planned) != 1 || planned[0]["patient"] != "Иванов Иван Иванович" {
 		t.Fatalf("planned operations contain an unperformed plan entry: %#v", planned)
 	}
 }

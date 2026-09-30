@@ -9,11 +9,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/repomz/viewer_backend/internal/app/common/server"
 )
+
+var reportStorageMu sync.Mutex
 
 type reportRequest struct {
 	AgentID     int32          `json:"agent_id"`
@@ -86,6 +89,8 @@ func (h HttpServer) CreateReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func storeReport(request reportRequest) (string, error) {
+	reportStorageMu.Lock()
+	defer reportStorageMu.Unlock()
 	directory := reportsDirectory()
 	if err := os.MkdirAll(directory, 0o750); err != nil {
 		return "", err
@@ -221,6 +226,8 @@ func (h HttpServer) GetReports(w http.ResponseWriter, r *http.Request) {
 
 // Only recognised report documents are removed; unrelated files are preserved.
 func cleanupExpiredReports(now time.Time) {
+	reportStorageMu.Lock()
+	defer reportStorageMu.Unlock()
 	entries, err := os.ReadDir(reportsDirectory())
 	if err != nil {
 		return
@@ -269,6 +276,8 @@ func (h HttpServer) GetReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h HttpServer) DeleteReport(w http.ResponseWriter, r *http.Request) {
+	reportStorageMu.Lock()
+	defer reportStorageMu.Unlock()
 	filename := mux.Vars(r)["filename"]
 	if filename != filepath.Base(filename) || !strings.HasSuffix(filename, ".json") {
 		server.BadRequest("invalid-report-name", fmt.Errorf("invalid report filename"), w, r)

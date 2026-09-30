@@ -110,7 +110,7 @@ func isProtocolStudy(study domain.Study) bool {
 }
 
 func dutyDate(value time.Time) string {
-	return value.In(time.Local).Add(-dutyBoundaryHour * time.Hour).Format("2006-01-02")
+	return value.In(time.Local).Add(-dutyBoundaryHour*time.Hour - dutyBoundaryMinute*time.Minute).Format("2006-01-02")
 }
 
 func (h HttpServer) buildOperationsReport(
@@ -119,9 +119,21 @@ func (h HttpServer) buildOperationsReport(
 	end time.Time,
 	days int,
 ) (map[string]any, error) {
-	studies, err := h.studyService.GetAllStudies(ctx, 5000, 0)
-	if err != nil {
-		return nil, err
+	// Read only the report window, in bounded pages, rather than the latest 5000
+	// rows of a database which also contains the multi-year archive.
+	studies := make([]domain.Study, 0)
+	for offset := 0; ; offset += 1000 {
+		if offset >= studyAnalysisMaxRows {
+			return nil, fmt.Errorf("report exceeds study safety limit")
+		}
+		page, err := h.studyService.GetProtocolStudiesSince(ctx, start, 1000, offset)
+		if err != nil {
+			return nil, err
+		}
+		studies = append(studies, page...)
+		if len(page) < 1000 {
+			break
+		}
 	}
 	operationPlanMu.RLock()
 	plan, err := loadOperationPlan()
@@ -134,49 +146,32 @@ func (h HttpServer) buildOperationsReport(
 		return studies[i].TimeBeginning().Time.Before(studies[j].TimeBeginning().Time)
 	})
 	periodStudies := make([]domain.Study, 0)
-	allProtocols := make([]domain.Study, 0)
 	for _, study := range studies {
 		if !isProtocolStudy(study) || !study.TimeBeginning().Valid {
 			continue
 		}
-		allProtocols = append(allProtocols, study)
 		value := study.TimeBeginning().Time.In(time.Local)
 		if !value.Before(start) && value.Before(end) {
 			periodStudies = append(periodStudies, study)
 		}
 	}
 
-	plannedByDate := make(map[string]map[string]operationPlanEntry)
-	for date := start; date.Before(end); date = date.AddDate(0, 0, 1) {
-		entries := make(map[string]operationPlanEntry)
-		for _, entry := range plan.Days[date.Format("2006-01-02")] {
-			if key := reportPatientKey(entry.Patient); key != "" {
-				entries[key] = entry
-			}
-		}
-		plannedByDate[date.Format("2006-01-02")] = entries
-	}
-
-	performedPlanned := make(map[string]domain.Study)
+	planned := make([]map[string]any, 0)
 	emergency := make([]map[string]any, 0)
 	for _, study := range periodStudies {
-		key := reportPatientKey(study.Patient())
 		date := dutyDate(study.TimeBeginning().Time)
-		if _, planned := plannedByDate[date][key]; planned {
-			performedPlanned[date+"|"+key] = study
+		isPlanned := false
+		for _, entry := range plan.Days[date] {
+			if planPatientMatches(entry.Patient, study.Patient()) &&
+				(entry.BirthDate == "" || planBirthMatches(entry.BirthDate, study)) {
+				isPlanned = true
+				break
+			}
+		}
+		if isPlanned {
+			planned = append(planned, reportOperation(study))
 		} else {
 			emergency = append(emergency, reportOperation(study))
-		}
-	}
-
-	planned := make([]map[string]any, 0)
-	for date := start; date.Before(end); date = date.AddDate(0, 0, 1) {
-		dateKey := date.Format("2006-01-02")
-		for _, entry := range plan.Days[dateKey] {
-			key := reportPatientKey(entry.Patient)
-			if study, ok := performedPlanned[dateKey+"|"+key]; ok {
-				planned = append(planned, reportOperation(study))
-			}
 		}
 	}
 
@@ -184,9 +179,15 @@ func (h HttpServer) buildOperationsReport(
 	todayPlan := make([]map[string]any, 0)
 	for _, entry := range plan.Days[todayDate] {
 		previous := make([]map[string]any, 0)
-		key := reportPatientKey(entry.Patient)
+		allProtocols := []domain.Study{}
+		if !parseStudyBirthDate(entry.BirthDate).IsZero() {
+			allProtocols, err = h.studyService.GetProtocolStudyCandidates(ctx, reportPatientKey(entry.Patient), time.Date(1900, 1, 1, 0, 0, 0, 0, time.Local), end, 500)
+			if err != nil {
+				return nil, err
+			}
+		}
 		for _, study := range allProtocols {
-			if reportPatientKey(study.Patient()) != key || !study.TimeBeginning().Time.Before(end) {
+			if !planPatientMatches(entry.Patient, study.Patient()) || !planBirthMatches(entry.BirthDate, study) || !study.TimeBeginning().Time.Before(end) {
 				continue
 			}
 			previous = append(previous, map[string]any{
@@ -239,10 +240,16 @@ func (h HttpServer) StartReportScheduler(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	lastGeneratedEnd := ""
+	lastRefresh := time.Time{}
 	run := func() {
 		location, _ := time.LoadLocation("Asia/Tomsk")
 		now := time.Now().In(location)
 		cleanupExpiredReports(now)
+		if now.Sub(lastRefresh) >= 5*time.Minute {
+			if err := h.refreshStoredReports(ctx); err == nil {
+				lastRefresh = now
+			}
+		}
 		if now.Before(time.Date(now.Year(), now.Month(), now.Day(), dutyBoundaryHour, dutyBoundaryMinute, 0, 0, location)) {
 			return
 		}
