@@ -20,6 +20,7 @@ type studyServiceStub struct {
 	limit       int
 	offset      int
 	getAllCalls int
+	since       time.Time
 }
 
 func TestYearSearchMonthIncludesAllMatchingMonthProtocols(t *testing.T) {
@@ -49,7 +50,8 @@ func (s *studyServiceStub) GetAllStudies(_ context.Context, limit, offset int) (
 	return s.studies, nil
 }
 
-func (s *studyServiceStub) GetProtocolStudiesSince(_ context.Context, _ time.Time, limit, offset int) ([]domain.Study, error) {
+func (s *studyServiceStub) GetProtocolStudiesSince(_ context.Context, since time.Time, limit, offset int) ([]domain.Study, error) {
+	s.since = since
 	s.limit, s.offset = limit, offset
 	return s.studies, nil
 }

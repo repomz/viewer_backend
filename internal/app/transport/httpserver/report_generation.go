@@ -109,11 +109,10 @@ func isProtocolStudy(study domain.Study) bool {
 	return typeValue != "xa" && typeValue != "ct"
 }
 
-// Protocol timestamps are hospital wall-clock values stored in PostgreSQL as
-// timestamp WITHOUT time zone. lib/pq labels them UTC; converting with In
-// would incorrectly add seven hours and exclude overnight operations.
+// The agent sends UTC timestamps. PostgreSQL stores those UTC clock values
+// without a zone; convert them to hospital time for reporting.
 func reportStudyTime(value time.Time) time.Time {
-	return time.Date(value.Year(), value.Month(), value.Day(), value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.Local)
+	return value.In(time.Local)
 }
 
 func dutyDate(value time.Time) string {
@@ -133,7 +132,7 @@ func (h HttpServer) buildOperationsReport(
 		if offset >= studyAnalysisMaxRows {
 			return nil, fmt.Errorf("report exceeds study safety limit")
 		}
-		page, err := h.studyService.GetProtocolStudiesSince(ctx, start, 1000, offset)
+		page, err := h.studyService.GetProtocolStudiesSince(ctx, start.UTC(), 1000, offset)
 		if err != nil {
 			return nil, err
 		}
