@@ -170,7 +170,9 @@ func run() error {
 	router.HandleFunc("/duty-schedule/{month}", httpServer.GetDutySchedule).Methods(http.MethodGet)
 	router.HandleFunc("/duty-schedule/{month}", httpServer.PutDutySchedule).Methods(http.MethodPut)
 	router.HandleFunc("/statistics/operations", httpServer.GetOperationStatistics).Methods(http.MethodGet)
-	router.HandleFunc("/statistics/vmp", httpServer.PutVMPStatisticsConfig).Methods(http.MethodPut)
+	router.HandleFunc("/payment-rules", httpServer.RequireAuth(httpServer.GetPaymentRules)).Methods(http.MethodGet)
+	router.HandleFunc("/payment-rules", httpServer.RequireAdmin(httpServer.PutPaymentRules)).Methods(http.MethodPut)
+	router.HandleFunc("/studies/{study_id}/payment", httpServer.RequireAuth(httpServer.PutStudyPayment)).Methods(http.MethodPut)
 	router.HandleFunc("/statistics/history", httpServer.GetHistoricalStatistics).Methods(http.MethodGet)
 	router.HandleFunc("/statistics/history", httpServer.PutHistoricalStatistics).Methods(http.MethodPut)
 
@@ -188,6 +190,7 @@ func run() error {
 	router.HandleFunc("/agent_status/searchby_status", httpServer.GetAgentRecordsByAgentIDandStatus).Methods(http.MethodGet)
 	router.HandleFunc("/agent_logs", httpServer.CreateAgentLog).Methods(http.MethodPost)
 	router.HandleFunc("/agent_logs", httpServer.RequireAdmin(httpServer.GetAgentLogs)).Methods(http.MethodGet)
+	router.HandleFunc("/agent_logs/alerts", httpServer.RequireAdmin(httpServer.GetAgentLogAlerts)).Methods(http.MethodGet)
 	router.HandleFunc("/agent_configurations", httpServer.RequireAdmin(httpServer.GetAgentConfigurations)).Methods(http.MethodGet)
 
 	router.HandleFunc("/user_requests", httpServer.CreateUserRequest).Methods(http.MethodPost)

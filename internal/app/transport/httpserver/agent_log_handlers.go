@@ -13,6 +13,20 @@ import (
 
 const maxAgentLogBytes = 8 << 20
 
+// GetAgentLogAlerts returns no log content; protected by RequireAdmin.
+func (h HttpServer) GetAgentLogAlerts(w http.ResponseWriter, r *http.Request) {
+	var hasIssues bool
+	err := h.sqlDB.QueryRowContext(r.Context(), `SELECT EXISTS (
+      SELECT 1 FROM agent_logs WHERE has_issues AND
+      period_start >= (date_trunc('day', now() AT TIME ZONE 'Asia/Tomsk') - interval '6 days') AT TIME ZONE 'Asia/Tomsk'
+    )`).Scan(&hasIssues)
+	if err != nil {
+		server.RespondWithError(err, w, r)
+		return
+	}
+	server.RespondOK(map[string]bool{"has_issues": hasIssues}, w, r)
+}
+
 type agentLogRequest struct {
 	AgentID     int32     `json:"agent_id"`
 	PeriodStart time.Time `json:"period_start"`

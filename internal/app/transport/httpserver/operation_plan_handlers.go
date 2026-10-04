@@ -21,6 +21,7 @@ import (
 )
 
 type operationPlanEntry struct {
+	VMP        bool   `json:"vmp"`
 	BirthDate  string `json:"birth_date,omitempty"`
 	Patient    string `json:"patient"`
 	Department string `json:"department"`

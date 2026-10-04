@@ -35,12 +35,13 @@ const (
 var loginPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]{3,32}$`)
 
 type authenticatedUser struct {
-	ID          int64  `json:"id"`
-	DisplayName string `json:"display_name"`
-	Login       string `json:"login"`
-	Role        string `json:"role"`
-	QuotaBytes  int64  `json:"quota_bytes"`
-	TokenHash   []byte `json:"-"`
+	CanConfirmPayment bool   `json:"can_confirm_payment"`
+	ID                int64  `json:"id"`
+	DisplayName       string `json:"display_name"`
+	Login             string `json:"login"`
+	Role              string `json:"role"`
+	QuotaBytes        int64  `json:"quota_bytes"`
+	TokenHash         []byte `json:"-"`
 }
 
 type userContextKey struct{}
@@ -100,11 +101,11 @@ func (h HttpServer) authenticate(r *http.Request) (authenticatedUser, error) {
 	hash := sha256.Sum256([]byte(token))
 	var user authenticatedUser
 	err := h.sqlDB.QueryRowContext(r.Context(), `
-		SELECT u.id, u.display_name, u.login, u.role, u.quota_bytes
+		SELECT u.id, u.display_name, u.login, u.role, u.quota_bytes, u.can_confirm_payment
 		FROM auth_sessions s
 		JOIN app_users u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > NOW()
-	`, hash[:]).Scan(&user.ID, &user.DisplayName, &user.Login, &user.Role, &user.QuotaBytes)
+	`, hash[:]).Scan(&user.ID, &user.DisplayName, &user.Login, &user.Role, &user.QuotaBytes, &user.CanConfirmPayment)
 	if err != nil {
 		return authenticatedUser{}, err
 	}
@@ -177,9 +178,9 @@ func (h HttpServer) Login(w http.ResponseWriter, r *http.Request) {
 	var user authenticatedUser
 	var passwordHash string
 	err := h.sqlDB.QueryRowContext(r.Context(), `
-		SELECT id, display_name, login, role, quota_bytes, password_hash
+		SELECT id, display_name, login, role, quota_bytes, password_hash, can_confirm_payment
 		FROM app_users WHERE LOWER(login) = LOWER($1)
-	`, request.Login).Scan(&user.ID, &user.DisplayName, &user.Login, &user.Role, &user.QuotaBytes, &passwordHash)
+	`, request.Login).Scan(&user.ID, &user.DisplayName, &user.Login, &user.Role, &user.QuotaBytes, &passwordHash, &user.CanConfirmPayment)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(request.Password)) != nil {
 		writePlatformError(w, http.StatusUnauthorized, "Неверный логин или пароль")
 		return

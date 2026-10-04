@@ -28,6 +28,22 @@ func TestOperationStatisticsCachesRepeatedReads(t *testing.T) {
 	}
 }
 
+func TestExpandedStatisticsTypesHaveOnePrimaryColumn(t *testing.T) {
+	cases := map[string]string{
+		"стент_па": "stent_pa", "ВЭКС": "pacer_temporary", "ЭКС 1к": "pacer_single",
+		"ЭКС 2к": "pacer_dual", "ЭКС ревизия": "pacer_revision", "ВАБК": "iabp",
+		"эма": "ema", "бап_периферии": "bap_peripheral", "ангиография": "angiography",
+		"эмболизация": "embolization", "фистулография": "fistulography", "неизвестный тип": "other",
+	}
+	for kind, expected := range cases {
+		study := domain.ResponseToDBStudy(domain.DBStudyData{StudyType: kind})
+		ids := statisticsOperationTypeIDs(study)
+		if len(ids) != 1 || ids[0] != expected {
+			t.Fatalf("%s: got %v, expected %s", kind, ids, expected)
+		}
+	}
+}
+
 func statisticsStudy(id uuid.UUID, patient, operationType, surgeon string) domain.Study {
 	return domain.ResponseToDBStudy(domain.DBStudyData{
 		ID: id, StudyID: id.String(), Patient: patient, NameOperation: operationType,
@@ -36,14 +52,14 @@ func statisticsStudy(id uuid.UUID, patient, operationType, surgeon string) domai
 	})
 }
 
-func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T) {
+func TestBuildOperationStatisticsUsesConfirmedPaymentOnly(t *testing.T) {
 	stentIncluded := uuid.New()
 	stentExcluded := uuid.New()
 	manualKAG := uuid.New()
 	studies := []domain.Study{
-		statisticsStudy(stentIncluded, "Иванов", "стент_кор", "Идрисов"),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: stentIncluded, StudyType: "стент_кор", Options: "ivus", Payment: "vmp", Surgeon: "Идрисов", TimeBeginning: time.Date(2026, 8, 3, 10, 0, 0, 0, time.Local)}),
 		statisticsStudy(stentExcluded, "Петров", "стент_кор", "Идрисов"),
-		statisticsStudy(manualKAG, "Сидоров", "каг", "Старков"),
+		domain.ResponseToDBStudy(domain.DBStudyData{ID: manualKAG, StudyType: "каг", Payment: "vmp", Surgeon: "Старков", TimeBeginning: time.Date(2026, 8, 3, 10, 0, 0, 0, time.Local)}),
 	}
 	handler := NewHttpServer(&studyServiceStub{}, nil)
 	result := handler.buildOperationStatistics(studies, vmpStatisticsConfig{
@@ -64,7 +80,7 @@ func TestBuildOperationStatisticsAppliesVMPTypesAndPatientOverrides(t *testing.T
 }
 
 func TestStatisticsRecognizesStentWithIntravascularImaging(t *testing.T) {
-	study := statisticsStudy(uuid.New(), "Иванов", "Стентирование коронарной артерии с ВСУЗИ", "Идрисов")
+	study := domain.ResponseToDBStudy(domain.DBStudyData{StudyType: "стент_кор", Options: "ivus"})
 	ids := statisticsOperationTypeIDs(study)
 	want := map[string]bool{"vzuzi": true, "stent_cor": true}
 	for _, id := range ids {

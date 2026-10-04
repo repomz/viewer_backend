@@ -17,6 +17,9 @@ func domainToDBagentRecordParams(agent domain.AgentRecord) db.CreateAgentRecordP
 
 func domainToDBStudyParams(study domain.Study) db.CreateStudyParams {
 	return db.CreateStudyParams{
+		Room:           study.Room(),
+		Description:    study.Description(),
+		Options:        study.Options(),
 		StudyID:        study.StudyID(),
 		Patient:        study.Patient(),
 		Age:            study.Age(),

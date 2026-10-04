@@ -30,3 +30,21 @@ func TestHistoricalStatisticsRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected historical statistics: %#v", loaded)
 	}
 }
+
+func TestHistoricalStatisticsIVUSOverlay(t *testing.T) {
+	document := historicalStatisticsDocument{
+		SchemaVersion: 3, StartYear: 2025, EndYear: 2025,
+		OperationTypes: []string{"СТЕНТ КОР", "ВСУЗИ"},
+		Years:          []historicalStatisticsYear{{Year: 2025, Counts: map[string]int{"СТЕНТ КОР": 2, "ВСУЗИ": 1}}},
+	}
+	if err := normalizeHistoricalStatistics(&document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Years[0].Total != 2 {
+		t.Fatalf("IVUS double-counted: %d", document.Years[0].Total)
+	}
+	document.Years[0].Counts["ВСУЗИ"] = 3
+	if err := normalizeHistoricalStatistics(&document); err == nil {
+		t.Fatal("accepted impossible IVUS count")
+	}
+}

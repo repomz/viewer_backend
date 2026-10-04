@@ -85,8 +85,8 @@ func loadHistoricalStatistics() (historicalStatisticsDocument, error) {
 }
 
 func normalizeHistoricalStatistics(document *historicalStatisticsDocument) error {
-	if document.SchemaVersion != 2 {
-		return errors.New("schema_version 2 is required")
+	if document.SchemaVersion != 2 && document.SchemaVersion != 3 {
+		return errors.New("schema_version 2 or 3 is required")
 	}
 	currentYear := time.Now().Year()
 	if document.StartYear < 1900 || document.StartYear > currentYear+1 {
@@ -132,7 +132,19 @@ func normalizeHistoricalStatistics(document *historicalStatisticsDocument) error
 			if !allowedTypes[operationType] || count < 0 {
 				return fmt.Errorf("invalid historical operation count: %s", operationType)
 			}
-			row.Total += count
+			// Version 2 counted mutually exclusive columns. Version 3 adds
+			// IVUS as an overlay, not a second operation.
+			isOverlay := operationType == "ВСУЗИ" || operationType == "ВАБК (доп.)" || operationType == "ЭКМО (доп.)"
+			if document.SchemaVersion == 2 || !isOverlay {
+				row.Total += count
+			}
+		}
+		if document.SchemaVersion == 3 {
+			for _, overlay := range []string{"ВСУЗИ", "ВАБК (доп.)", "ЭКМО (доп.)"} {
+				if row.Counts[overlay] > row.Total {
+					return fmt.Errorf("%s count exceeds the number of operations", overlay)
+				}
+			}
 		}
 	}
 	sort.Slice(document.Years, func(i, j int) bool { return document.Years[i].Year < document.Years[j].Year })

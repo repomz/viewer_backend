@@ -54,6 +54,7 @@ func toDomainAgentRecord(agentRequest httpmodels.AgentRecordRequest) (domain.Age
 
 func toResponseStudy(study domain.Study) httpmodels.StudyResponse {
 	return httpmodels.StudyResponse{
+		Options: study.Options(), Payment: study.Payment(), PaymentPending: study.PaymentPending(),
 		ID:             study.ID(),
 		CreatedAt:      study.CreatedAt(),
 		UpdatedAt:      study.UpdatedAt(),
@@ -65,6 +66,8 @@ func toResponseStudy(study domain.Study) httpmodels.StudyResponse {
 		NameOperation:  study.NameOperation(),
 		StudyType:      study.StudyType(),
 		DescrOperation: study.DescrOperation(),
+		Description:    study.Description(),
+		Room:           study.Room(),
 		Recommendation: study.Recommendation(),
 		TimeBeginning:  study.TimeBeginning().Time,
 		TimeDuration:   study.TimeDuration().Int32,
@@ -75,6 +78,7 @@ func toResponseStudy(study domain.Study) httpmodels.StudyResponse {
 
 func toDomainStudy(studyRequest httpmodels.StudyRequest) domain.Study {
 	return domain.ResponseToDBStudy(domain.DBStudyData{
+		Options:        studyRequest.Options,
 		StudyID:        studyRequest.StudyID,
 		Patient:        studyRequest.Patient,
 		Age:            studyRequest.Age,
@@ -83,6 +87,8 @@ func toDomainStudy(studyRequest httpmodels.StudyRequest) domain.Study {
 		NameOperation:  studyRequest.NameOperation,
 		StudyType:      studyRequest.StudyType,
 		DescrOperation: studyRequest.DescrOperation,
+		Description:    studyRequest.Description,
+		Room:           studyRequest.Room,
 		Recommendation: studyRequest.Recommendation,
 		TimeBeginning:  studyRequest.TimeBeginning,
 		TimeDuration:   studyRequest.TimeDuration,

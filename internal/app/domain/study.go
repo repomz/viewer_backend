@@ -10,6 +10,11 @@ import (
 
 // Study is a domain study.
 type Study struct {
+	room           int32
+	description    string
+	options        string
+	payment        string
+	paymentPending bool
 	birthDate      time.Time
 	id             uuid.UUID
 	studyID        string
@@ -29,6 +34,11 @@ type Study struct {
 }
 
 type DBStudyData struct {
+	Room           int32
+	Description    string
+	Options        string
+	Payment        string
+	PaymentPending bool
 	BirthDate      time.Time
 	ID             uuid.UUID
 	StudyID        string
@@ -50,6 +60,9 @@ type DBStudyData struct {
 // NewStudy creates a new domain Study from response
 func ResponseToDBStudy(data DBStudyData) Study {
 	return Study{
+		room:        data.Room,
+		description: data.Description,
+		options:     data.Options, payment: data.Payment, paymentPending: data.PaymentPending,
 		birthDate:      data.BirthDate,
 		id:             data.ID,
 		createdAt:      data.CreatedAt,
@@ -72,6 +85,9 @@ func ResponseToDBStudy(data DBStudyData) Study {
 // NewStudy creates a new domain Study from db
 func DBToNewStudy(data db.Study) (Study, error) {
 	return Study{
+		room:        data.Room,
+		description: data.Description,
+		options:     data.Options, payment: data.Payment, paymentPending: data.PaymentPending,
 		birthDate:      data.BirthDate.Time,
 		id:             data.ID,
 		createdAt:      data.CreatedAt,
@@ -135,9 +151,24 @@ func (b Study) StudyType() string {
 	return b.studyType
 }
 
+func (b Study) Options() string { return b.options }
+func (b Study) Payment() string {
+	if b.payment == "vmp" {
+		return "vmp"
+	}
+	if b.payment == "oms" {
+		return "oms"
+	}
+	return ""
+}
+func (b Study) Room() int32          { return b.room }
+func (b Study) PaymentPending() bool { return b.paymentPending }
+
 func (b Study) DescrOperation() string {
 	return b.descrOperation
 }
+
+func (b Study) Description() string { return b.description }
 
 func (b Study) Recommendation() string {
 	return b.recommendation

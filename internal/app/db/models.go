@@ -13,12 +13,13 @@ import (
 )
 
 type AgentLog struct {
-	ID          uuid.UUID `json:"id"`
-	AgentID     int32     `json:"agent_id"`
-	PeriodStart time.Time `json:"period_start"`
-	PeriodEnd   time.Time `json:"period_end"`
-	Content     string    `json:"content"`
-	ReceivedAt  time.Time `json:"received_at"`
+	ID          uuid.UUID    `json:"id"`
+	AgentID     int32        `json:"agent_id"`
+	PeriodStart time.Time    `json:"period_start"`
+	PeriodEnd   time.Time    `json:"period_end"`
+	Content     string       `json:"content"`
+	HasIssues   sql.NullBool `json:"has_issues"`
+	ReceivedAt  time.Time    `json:"received_at"`
 }
 
 type AgentRecord struct {
@@ -29,23 +30,29 @@ type AgentRecord struct {
 }
 
 type Study struct {
-	ID             uuid.UUID      `json:"id"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	StudyID        string         `json:"study_id"`
-	Patient        string         `json:"patient"`
-	Age            sql.NullInt32  `json:"age"`
-	Department     string         `json:"department"`
-	NameOperation  string         `json:"name_operation"`
-	StudyType      string         `json:"study_type"`
-	DescrOperation string         `json:"descr_operation"`
-	Recommendation string         `json:"recommendation"`
-	BirthDate      sql.NullTime   `json:"birth_date"`
-	TimeBeginning  sql.NullTime   `json:"time_beginning"`
-	TimeDuration   sql.NullInt32  `json:"time_duration"`
-	Surgeon        string         `json:"surgeon"`
-	DicomLink      sql.NullString `json:"dicom_link"`
-	Deleted        bool           `json:"deleted"`
+	ID              uuid.UUID      `json:"id"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	StudyID         string         `json:"study_id"`
+	Patient         string         `json:"patient"`
+	Age             sql.NullInt32  `json:"age"`
+	Department      string         `json:"department"`
+	NameOperation   string         `json:"name_operation"`
+	StudyType       string         `json:"study_type"`
+	DescrOperation  string         `json:"descr_operation"`
+	Description     string         `json:"description"`
+	Room            int32          `json:"room"`
+	Recommendation  string         `json:"recommendation"`
+	BirthDate       sql.NullTime   `json:"birth_date"`
+	Options         string         `json:"options"`
+	Payment         string         `json:"payment"`
+	PaymentPending  bool           `json:"payment_pending"`
+	PaymentOverride sql.NullString `json:"payment_override"`
+	TimeBeginning   sql.NullTime   `json:"time_beginning"`
+	TimeDuration    sql.NullInt32  `json:"time_duration"`
+	Surgeon         string         `json:"surgeon"`
+	DicomLink       sql.NullString `json:"dicom_link"`
+	Deleted         bool           `json:"deleted"`
 }
 
 type UserRequest struct {

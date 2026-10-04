@@ -10,22 +10,51 @@ import (
 )
 
 type StudyRequest struct {
-	BirthDate      string    `json:"birth_date"`
-	StudyID        string    `json:"study_id"`
-	Patient        string    `json:"patient"`
-	Age            int32     `json:"age"`
-	Department     string    `json:"department"`
-	NameOperation  string    `json:"name_operation"`
-	StudyType      string    `json:"study_type"`
-	DescrOperation string    `json:"descr_operation"`
-	Recommendation string    `json:"recommendation"`
-	TimeBeginning  time.Time `json:"time_beginning"`
-	TimeDuration   int32     `json:"time_duration"`
-	Surgeon        string    `json:"surgeon"`
-	DicomLink      string    `json:"dicom_link"`
+	Room             int32     `json:"room"`
+	Conclusion       *string   `json:"conclusion"`
+	Description      string    `json:"description"`
+	Options          string    `json:"options"`
+	BirthDate        string    `json:"birth_date"`
+	StudyID          string    `json:"study_id"`
+	Patient          string    `json:"patient"`
+	Age              int32     `json:"age"`
+	Department       string    `json:"department"`
+	DepartmentReview string    `json:"department_review,omitempty"`
+	NameOperation    string    `json:"name_operation"`
+	StudyType        string    `json:"study_type"`
+	DescrOperation   string    `json:"descr_operation"`
+	Recommendation   string    `json:"recommendation"`
+	TimeBeginning    time.Time `json:"time_beginning"`
+	TimeDuration     int32     `json:"time_duration"`
+	Surgeon          string    `json:"surgeon"`
+	DicomLink        string    `json:"dicom_link"`
 }
 
 func (s *StudyRequest) Validate() error {
+	if s.Room < 0 || s.Room > 2 {
+		return fmt.Errorf("invalid room: expected 1 or 2")
+	}
+	if s.Conclusion != nil {
+		s.DescrOperation = *s.Conclusion
+	}
+	s.Description = strings.TrimSpace(s.Description)
+	allowedOptions := map[string]bool{"ivus": true, "vabk": true, "ekmo": true}
+	seenOptions := make(map[string]bool)
+	options := make([]string, 0, 3)
+	for _, option := range strings.Split(strings.ToLower(strings.ReplaceAll(s.Options, ";", ",")), ",") {
+		option = strings.TrimSpace(option)
+		if option == "" {
+			continue
+		}
+		if !allowedOptions[option] {
+			return fmt.Errorf("invalid option: %s", option)
+		}
+		if !seenOptions[option] {
+			seenOptions[option] = true
+			options = append(options, option)
+		}
+	}
+	s.Options = strings.Join(options, ",")
 	if s.BirthDate != "" {
 		birth, err := time.Parse("2006-01-02", s.BirthDate)
 		if err != nil || birth.After(s.TimeBeginning) {
@@ -35,6 +64,7 @@ func (s *StudyRequest) Validate() error {
 	s.StudyID = strings.TrimSpace(s.StudyID)
 	s.Patient = strings.TrimSpace(s.Patient)
 	s.Department = strings.TrimSpace(s.Department)
+	s.DepartmentReview = strings.TrimSpace(s.DepartmentReview)
 	s.NameOperation = strings.TrimSpace(s.NameOperation)
 	s.StudyType = strings.ToLower(strings.TrimSpace(s.StudyType))
 	s.DescrOperation = strings.TrimSpace(s.DescrOperation)
@@ -59,9 +89,6 @@ func (s *StudyRequest) Validate() error {
 	}
 	if s.StudyType == "" {
 		return fmt.Errorf("%w: study_type", domain.ErrRequired)
-	}
-	if s.DescrOperation == "" {
-		return fmt.Errorf("%w: descr_operation", domain.ErrRequired)
 	}
 	if s.TimeBeginning.IsZero() {
 		return fmt.Errorf("%w: time_beginning", domain.ErrRequired)
@@ -88,6 +115,11 @@ func (s *StudyDicomLinkRequest) Validate() error {
 }
 
 type StudyResponse struct {
+	Room           int32     `json:"room,omitempty"`
+	Description    string    `json:"description"`
+	Options        string    `json:"options"`
+	Payment        string    `json:"payment,omitempty"`
+	PaymentPending bool      `json:"payment_pending"`
 	BirthDate      string    `json:"birth_date,omitempty"`
 	ID             uuid.UUID `json:"id"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -98,7 +130,7 @@ type StudyResponse struct {
 	Department     string    `json:"department"`
 	NameOperation  string    `json:"name_operation"`
 	StudyType      string    `json:"study_type"`
-	DescrOperation string    `json:"descr_operation"`
+	DescrOperation string    `json:"conclusion"`
 	Recommendation string    `json:"recommendation"`
 	TimeBeginning  time.Time `json:"time_beginning"`
 	TimeDuration   int32     `json:"time_duration"`

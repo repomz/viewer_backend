@@ -43,6 +43,30 @@ func TestStudyRequestValidateAndNormalize(t *testing.T) {
 	}
 }
 
+func TestConclusionAllowsExplicitEmptyAndOverridesLegacy(t *testing.T) {
+	r := validStudyRequest()
+	empty := ""
+	r.Conclusion = &empty
+	r.Description = " ВСУЗИ до и после стентирования. "
+	if err := r.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if r.DescrOperation != "" || r.Description != "ВСУЗИ до и после стентирования." {
+		t.Fatalf("unexpected sections: %+v", r)
+	}
+}
+
+func TestOptionsAcceptMultipleKnownFlags(t *testing.T) {
+	r := validStudyRequest()
+	r.Options = " ekmo,ivus,vabk,ivus "
+	if err := r.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if r.Options != "ekmo,ivus,vabk" {
+		t.Fatalf("unexpected normalized options: %q", r.Options)
+	}
+}
+
 func TestStudyRequestRejectsMissingAndInvalidValues(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -53,10 +53,11 @@ func dutySchedulePath(month string) string {
 func defaultDutySchedule(month string) dutyScheduleDocument {
 	return dutyScheduleDocument{Month: month, Holidays: []int{}, Groups: []dutyScheduleGroup{
 		{ID: "surgeons", Label: "Хирурги", Staff: []dutyScheduleStaff{
-			{ID: "kirgizov", Name: "Киргизов А.А.", Shifts: map[string]string{}},
-			{ID: "idrisov", Name: "Идрисов М.З.", Shifts: map[string]string{}},
-			{ID: "starkov", Name: "Старков А.С.", Shifts: map[string]string{}},
-			{ID: "shpilevoy", Name: "Шпилевой М.П.", Shifts: map[string]string{}},
+			{ID: "kirgizov", Name: "Киргизов", Shifts: map[string]string{}},
+			{ID: "idrisov", Name: "Идрисов", Shifts: map[string]string{}},
+			{ID: "starkov", Name: "Старков", Shifts: map[string]string{}},
+			{ID: "shpilevoy", Name: "Шпилевой", Shifts: map[string]string{}},
+			{ID: "suslov", Name: "Суслов", Role: "duty_only", Shifts: map[string]string{}},
 		}},
 	}, UpdatedAt: time.Now().UTC()}
 }

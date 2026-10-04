@@ -4,6 +4,8 @@ CREATE TABLE agent_logs (
     period_start TIMESTAMPTZ NOT NULL,
     period_end   TIMESTAMPTZ NOT NULL,
     content      TEXT NOT NULL,
+    has_issues BOOLEAN GENERATED ALWAYS AS
+      (content ~ '\|[[:space:]]*(WARNING|ERROR|CRITICAL)[[:space:]]*\|') STORED,
     received_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT agent_logs_period_valid CHECK (period_end > period_start),
     CONSTRAINT agent_logs_agent_period_unique UNIQUE (agent_id, period_start)

@@ -138,17 +138,42 @@ func normalizeOperationTypes(values []string) []string {
 }
 
 var statisticsOperationTypes = []statisticsOperationType{
+	{ID: "vmp", Label: "ВМП"},
 	{ID: "vzuzi", Label: "ВСУЗИ"},
+	{ID: "vabk_option", Label: "ВАБК (доп.)"},
+	{ID: "ekmo_option", Label: "ЭКМО (доп.)"},
+	{ID: "ecmo", Label: "ЭКМО"},
+	{ID: "angiography_peripheral", Label: "АНГИО ПЕРИФЕРИИ"},
+	{ID: "embolization_peripheral", Label: "ЭМБОЛИЗАЦИЯ ПЕРИФЕРИИ"},
 	{ID: "kag", Label: "КАГ"},
 	{ID: "tsag", Label: "ЦАГ"},
 	{ID: "stent_cor", Label: "СТЕНТ КОР"},
 	{ID: "bap_cor", Label: "БАП КОР"},
 	{ID: "stent_vsa", Label: "СТЕНТ ВСА"},
+	{ID: "stent_pa", Label: "СТЕНТ ПА"},
 	{ID: "stent_upper", Label: "СТЕНТ В/К"},
 	{ID: "stent_lower", Label: "СТЕНТ Н/К"},
+	{ID: "stent_renal", Label: "СТЕНТ ПОЧКИ"},
 	{ID: "aneurysm", Label: "АНЕВРИЗМА"},
 	{ID: "stroke", Label: "ИНСУЛЬТ"},
 	{ID: "bap_shin", Label: "Голень"},
+	{ID: "bap_peripheral", Label: "БАП ПЕРИФ"},
+	{ID: "bap_carotid", Label: "БАП ВСА"},
+	{ID: "bap_fistula", Label: "БАП ФИСТУЛЫ"},
+	{ID: "ema", Label: "ЭМА"},
+	{ID: "pacer_dual", Label: "ЭКС 2к"},
+	{ID: "pacer_single", Label: "ЭКС 1к"},
+	{ID: "pacer_temporary", Label: "ВЭКС"},
+	{ID: "pacer_revision", Label: "ЭКС РЕВ"},
+	{ID: "pacer_other", Label: "ЭКС ПРОЧ"},
+	{ID: "iabp", Label: "ВАБК"},
+	{ID: "aspiration", Label: "ТА/ТЭ"},
+	{ID: "angiography", Label: "АНГИО"},
+	{ID: "embolization", Label: "ЭМБОЛ"},
+	{ID: "fistulography", Label: "ФИСТУЛОГР"},
+	{ID: "stent_other", Label: "СТЕНТ ПРОЧ"},
+	{ID: "bap_other", Label: "БАП ПРОЧ"},
+	{ID: "other", Label: "ДРУГИЕ"},
 }
 
 func containsAny(value string, needles ...string) bool {
@@ -161,43 +186,23 @@ func containsAny(value string, needles ...string) bool {
 }
 
 func statisticsOperationTypeIDs(study domain.Study) []string {
-	text := strings.ToLower(strings.ReplaceAll(strings.Join([]string{
-		study.StudyType(), study.NameOperation(), study.DescrOperation(),
-	}, " "), "ё", "е"))
-	stent := containsAny(text, "стент", "чкв")
-	vzuzi := containsAny(text, "всузи", "внутрисосудист")
-	coronary := containsAny(text, "коронар", "каг", "чкв", "стент_кор", "бап_кор")
-	tags := make([]string, 0, 3)
-	if vzuzi {
-		tags = append(tags, "vzuzi")
+	text := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(study.StudyType())), " ", "_")
+	mapping := map[string]string{"каг": "kag", "цаг": "tsag", "стент_кор": "stent_cor", "бап_кор": "bap_cor", "стент_вса": "stent_vsa", "стент_па": "stent_pa", "стент_вк": "stent_upper", "стент_нк": "stent_lower", "стент_почки": "stent_renal", "аневризма": "aneurysm", "инсульт": "stroke", "бап_голень": "bap_shin", "бап_периферии": "bap_peripheral", "бап_вса": "bap_carotid", "бап_фистулы": "bap_fistula", "эма": "ema", "экс_2к": "pacer_dual", "экс_1к": "pacer_single", "вэкс": "pacer_temporary", "экс_ревизия": "pacer_revision", "экс": "pacer_other", "экмо": "ecmo", "вабк": "iabp", "тромбаспирация": "aspiration", "ангиография": "angiography", "ангиография_периферии": "angiography_peripheral", "эмболизация": "embolization", "эмболизация_периферии": "embolization_peripheral", "фистулография": "fistulography", "стент_другие": "stent_other", "бап_другие": "bap_other", "другие": "other"}
+	tags := []string{}
+	if id := mapping[text]; id != "" {
+		tags = append(tags, id)
+	} else {
+		tags = append(tags, "other")
 	}
-	if stent && coronary {
-		tags = append(tags, "stent_cor")
-	} else if coronary && containsAny(text, "баллон", "бап") {
-		tags = append(tags, "bap_cor")
-	} else if containsAny(text, "каг", "коронарограф") {
-		tags = append(tags, "kag")
-	}
-	if !stent && containsAny(text, "цаг", "церебраль", "ангиограф") && containsAny(text, "бца", "церебраль", "цаг") {
-		tags = append(tags, "tsag")
-	}
-	if stent && containsAny(text, "вса", "каротид", "сонн") {
-		tags = append(tags, "stent_vsa")
-	}
-	if stent && containsAny(text, "верхн", "подключ") {
-		tags = append(tags, "stent_upper")
-	}
-	if stent && containsAny(text, "нижн", "опа", "нпа", "бедрен", "подкол") {
-		tags = append(tags, "stent_lower")
-	}
-	if containsAny(text, "эмболизац") && containsAny(text, "аневризм") {
-		tags = append(tags, "aneurysm")
-	}
-	if containsAny(text, "тромбаспирац", "тромбэкстракц", "тромбэктом") && containsAny(text, "сма", "пма", "зма", "базиляр", "вса", "инсульт") {
-		tags = append(tags, "stroke")
-	}
-	if containsAny(text, "бап голен", "баллонная ангиопластика голен") {
-		tags = append(tags, "bap_shin")
+	for _, option := range strings.Split(strings.ReplaceAll(study.Options(), ";", ","), ",") {
+		switch strings.ToLower(strings.TrimSpace(option)) {
+		case "ivus":
+			tags = append(tags, "vzuzi")
+		case "vabk":
+			tags = append(tags, "vabk_option")
+		case "ekmo":
+			tags = append(tags, "ekmo_option")
+		}
 	}
 	return normalizeStringSet(tags)
 }
@@ -213,9 +218,6 @@ func stringSet(values []string) map[string]bool {
 func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpStatisticsConfig, year int) operationStatisticsResponse {
 	typeTotals := make(map[string]int)
 	surgeons := make(map[string]*surgeonStatistics)
-	vmpTypes := stringSet(config.OperationTypes)
-	included := stringSet(config.IncludedStudies)
-	excluded := stringSet(config.ExcludedStudies)
 	vmpPatients := make([]vmpPatient, 0)
 
 	for _, study := range studies {
@@ -244,26 +246,19 @@ func (h HttpServer) buildOperationStatistics(studies []domain.Study, config vmpS
 		row.Total++
 
 		studyID := study.ID().String()
-		matchedVMPType := ""
-		for _, typeID := range typeIDs {
-			if vmpTypes[typeID] {
-				matchedVMPType = typeID
-				break
-			}
-		}
-		isVMP := !excluded[studyID] && (matchedVMPType != "" || included[studyID])
+		matchedVMPType := study.StudyType()
+		isVMP := study.Payment() == "vmp" && !study.PaymentPending()
 		if !isVMP {
 			continue
 		}
 		row.VMP++
+		row.Counts["vmp"]++
+		typeTotals["vmp"]++
 		date := ""
 		if study.TimeBeginning().Valid {
 			date = study.TimeBeginning().Time.In(time.Local).Format("2006-01-02")
 		}
-		source := "type"
-		if included[studyID] {
-			source = "patient"
-		}
+		source := "payment"
 		vmpPatients = append(vmpPatients, vmpPatient{
 			StudyID: studyID, Patient: study.Patient(), Operation: study.NameOperation(),
 			OperationType: matchedVMPType, Surgeon: study.Surgeon(), Date: date, Source: source,
