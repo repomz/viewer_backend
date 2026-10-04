@@ -96,6 +96,43 @@ func TestStatisticsRecognizesStentWithIntravascularImaging(t *testing.T) {
 	}
 }
 
+func TestSupportOptionIsNotCountedAgainWhenItIsThePrimaryProcedure(t *testing.T) {
+	cases := []struct {
+		studyType string
+		option    string
+		primary   string
+		duplicate string
+	}{
+		{studyType: "ВАБК", option: "vabk", primary: "iabp", duplicate: "vabk_option"},
+		{studyType: "ЭКМО", option: "ekmo", primary: "ecmo", duplicate: "ekmo_option"},
+	}
+	for _, test := range cases {
+		study := domain.ResponseToDBStudy(domain.DBStudyData{StudyType: test.studyType, Options: test.option})
+		ids := statisticsOperationTypeIDs(study)
+		if len(ids) != 1 || ids[0] != test.primary {
+			t.Errorf("%s with option %s: got %v, want only %s", test.studyType, test.option, ids, test.primary)
+		}
+	}
+}
+
+func TestSupportOptionRemainsAdditionalWhenCombinedWithAnotherProcedure(t *testing.T) {
+	cases := []struct {
+		studyType  string
+		option     string
+		additional string
+	}{
+		{studyType: "каг", option: "vabk", additional: "vabk_option"},
+		{studyType: "стент_кор", option: "ekmo", additional: "ekmo_option"},
+	}
+	for _, test := range cases {
+		study := domain.ResponseToDBStudy(domain.DBStudyData{StudyType: test.studyType, Options: test.option})
+		ids := stringSet(statisticsOperationTypeIDs(study))
+		if !ids[test.additional] {
+			t.Errorf("%s with option %s: additional classification %s missing in %v", test.studyType, test.option, test.additional, ids)
+		}
+	}
+}
+
 func TestBuildOperationStatisticsOnlyCountsRequestedYear(t *testing.T) {
 	current := statisticsStudy(uuid.New(), "Иванов", "каг", "Идрисов")
 	old := domain.ResponseToDBStudy(domain.DBStudyData{

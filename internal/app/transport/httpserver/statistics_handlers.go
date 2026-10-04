@@ -199,9 +199,13 @@ func statisticsOperationTypeIDs(study domain.Study) []string {
 		case "ivus":
 			tags = append(tags, "vzuzi")
 		case "vabk":
-			tags = append(tags, "vabk_option")
+			if mapping[text] != "iabp" {
+				tags = append(tags, "vabk_option")
+			}
 		case "ekmo":
-			tags = append(tags, "ekmo_option")
+			if mapping[text] != "ecmo" {
+				tags = append(tags, "ekmo_option")
+			}
 		}
 	}
 	return normalizeStringSet(tags)
