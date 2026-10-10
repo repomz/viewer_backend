@@ -196,7 +196,8 @@ func planProtocols(entry operationPlanEntry, studies []domain.Study, planDate ti
 			}
 			continue
 		}
-		if studyDate.Before(planDate) && planBirthMatches(entry.BirthDate, *study) {
+		matchesHistory := planPatientSearchable(entry.Patient) && ((entry.BirthDate == "" && !studyDate.Before(planDate.AddDate(-1, 0, 0))) || planBirthMatches(entry.BirthDate, *study))
+		if studyDate.Before(planDate) && matchesHistory {
 			previous = append(previous, *study)
 		}
 	}
@@ -228,7 +229,7 @@ func responsePlanEntries(entries []operationPlanEntry, studies []domain.Study, p
 			operationPlanEntry: entry,
 			PreviousOperations: previous,
 			CompletedOperation: completed,
-			HistorySearched:    planPatientSearchable(entry.Patient) && !parseStudyBirthDate(entry.BirthDate).IsZero(),
+			HistorySearched:    planPatientSearchable(entry.Patient),
 		})
 	}
 	return result
@@ -294,13 +295,25 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 		server.RespondWithError(fmt.Errorf("load operation plan: %w", err), w, r)
 		return
 	}
+	// Fetch only patients in this plan, never the entire multi-year archive.
 	studies := []domain.Study{}
+	queried := make(map[string]bool)
 	if h.studyService != nil {
-		studies, err = loadStudiesForAnalysis(r.Context(), h.studyService)
-		if err != nil {
-			operationPlanResponseCache.Unlock()
-			server.RespondWithError(fmt.Errorf("load protocols for operation plan: %w", err), w, r)
-			return
+		for offset := 0; offset < 5; offset++ {
+			for _, entry := range plan.Days[start.AddDate(0, 0, offset).Format("2006-01-02")] {
+				prefix := reportPatientKey(entry.Patient)
+				if prefix == "" || queried[prefix] {
+					continue
+				}
+				queried[prefix] = true
+				candidates, queryErr := h.studyService.GetProtocolStudyCandidates(r.Context(), prefix, time.Date(1900, 1, 1, 0, 0, 0, 0, time.Local), start.AddDate(0, 0, 5), 10000)
+				if queryErr != nil || len(candidates) == 10000 {
+					operationPlanResponseCache.Unlock()
+					server.RespondWithError(fmt.Errorf("load plan history: query error or candidate limit reached: %v", queryErr), w, r)
+					return
+				}
+				studies = append(studies, candidates...)
+			}
 		}
 	}
 	response := operationPlanResponse{

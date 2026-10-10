@@ -38,7 +38,23 @@ func TestPlanWithoutBirthdayNeverReturnsHistoricalNamesake(t *testing.T) {
 		TimeBeginning: time.Date(2023, 7, 24, 9, 0, 0, 0, time.Local),
 	})
 	entries := responsePlanEntries([]operationPlanEntry{{Patient: "Смирнов АИ"}}, []domain.Study{study}, time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local))
-	if entries[0].HistorySearched || len(entries[0].PreviousOperations) != 0 {
-		t.Fatal("history must require birthday")
+	if !entries[0].HistorySearched || len(entries[0].PreviousOperations) != 0 {
+		t.Fatal("without birthday, history is searched but older than one year is excluded")
+	}
+}
+
+func TestPlanWithoutBirthdaySearchesRollingYear(t *testing.T) {
+	date := time.Date(2026, 10, 10, 0, 0, 0, 0, time.Local)
+	studies := []domain.Study{}
+	for _, day := range []time.Time{date.AddDate(-1, 0, 0), date.AddDate(-1, 0, -1), date.AddDate(0, 0, -1)} {
+		studies = append(studies, domain.ResponseToDBStudy(domain.DBStudyData{Patient: "Иванов Иван Иванович", StudyType: "каг", TimeBeginning: day}))
+	}
+	previous, _ := planProtocols(operationPlanEntry{Patient: "Иванов ИИ"}, studies, date)
+	if len(previous) != 2 {
+		t.Fatalf("got %d, want rolling year only", len(previous))
+	}
+	previous, _ = planProtocols(operationPlanEntry{Patient: "Иванов"}, studies, date)
+	if len(previous) != 0 {
+		t.Fatal("surname alone must not search history")
 	}
 }

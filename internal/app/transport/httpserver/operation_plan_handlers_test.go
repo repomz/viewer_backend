@@ -75,8 +75,8 @@ func TestOperationPlanCachesRepeatedReads(t *testing.T) {
 			t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 		}
 	}
-	if service.getAllCalls != 1 {
-		t.Fatalf("study loads = %d, want 1", service.getAllCalls)
+	if service.getAllCalls != 0 {
+		t.Fatalf("empty plan must not load the archive, got %d", service.getAllCalls)
 	}
 }
 
