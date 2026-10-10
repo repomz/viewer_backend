@@ -312,7 +312,13 @@ func (h HttpServer) GetOperationPlan(w http.ResponseWriter, r *http.Request) {
 					server.RespondWithError(fmt.Errorf("load plan history: query error or candidate limit reached: %v", queryErr), w, r)
 					return
 				}
-				studies = append(studies, candidates...)
+				for _, candidate := range candidates {
+					// Prefix lookup may also return a longer surname already queried
+					// for another plan row; keep each exact surname only once.
+					if reportPatientKey(candidate.Patient()) == prefix {
+						studies = append(studies, candidate)
+					}
+				}
 			}
 		}
 	}
