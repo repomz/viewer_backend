@@ -125,10 +125,12 @@ def recognize(source, month):
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         for row in range(2, len(ys)-1):
             name_image = gray[ys[row]+6:ys[row+1]-5, xs[1]+5:xs[2]-5]
-            text, _ = ocr(cv2.resize(name_image, None, fx=3, fy=3), "rus")
+            text, name_confidence = ocr(cv2.resize(name_image, None, fx=3, fy=3), "rus")
             match = re.search(r"([А-ЯЁ][а-яё]+)\s+([А-ЯЁ3])\s*[.,]?\s*([А-ЯЁ3])", text)
             if not match:
-                if len(re.findall(r"[А-Яа-яЁё]", text)) >= 8:
+                role_text, _ = ocr(cv2.resize(gray[ys[row]+5:ys[row+1]-4, xs[2]+5:xs[3]-5], None, fx=3, fy=3), "rus")
+                has_shift_label = bool(re.search(r"8\W*14|14\W*8|м\W*с|деж", role_text.lower()))
+                if has_shift_label or (name_confidence >= 20 and len(re.findall(r"[А-Яа-яЁё]", text)) >= 8):
                     raise ValueError("Не удалось надёжно прочитать фамилию сотрудника. Сделайте более ровный снимок")
                 if rows:
                     if group == "nurses":
