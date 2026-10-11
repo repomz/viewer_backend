@@ -15,3 +15,5 @@ docker_install.md
 AUDIT_REPORT.md
 AGENT_INTEGRATION.md
 reports
+**/__pycache__
+**/*.pyc

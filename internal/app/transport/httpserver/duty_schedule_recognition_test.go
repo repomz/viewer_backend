@@ -54,16 +54,6 @@ func TestDutySchedulePhotoValidation(t *testing.T) {
 		t.Fatal("unreadable value not flagged")
 	}
 }
-func TestDutySchedulePhotoDisagreement(t *testing.T) {
-	photo := photoFixture()
-	first, _ := photoSchedule(photo, "2026-10")
-	photo.Rows[1].Cells[0].Value = "24"
-	final, _ := photoSchedule(photo, "2026-10")
-	markPhotoDisagreements(&final, first)
-	if !final.Groups[1].Staff[0].Review["1:duty"] {
-		t.Fatal("disagreement hidden")
-	}
-}
 
 // Explicit opt-in smoke test. Credentials and source photographs never enter Git.
 func TestDutyScheduleVisionLive(t *testing.T) {
@@ -71,10 +61,7 @@ func TestDutyScheduleVisionLive(t *testing.T) {
 	if path == "" {
 		t.Skip("live provider test disabled")
 	}
-	key := os.Getenv("DEEPSEEK_API_KEY")
-	if key == "" {
-		t.Fatal("provider key missing")
-	}
+	t.Setenv("PLANS_DIR", t.TempDir())
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

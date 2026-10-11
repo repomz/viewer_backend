@@ -25,4 +25,5 @@ go.work
 
 # Local configuration and secrets
 .env
-
+__pycache__/
+*.pyc

@@ -32,13 +32,31 @@ type dutyScheduleGroup struct {
 }
 
 type dutyScheduleDocument struct {
-	Month     string              `json:"month"`
-	Holidays  []int               `json:"holidays"`
-	Groups    []dutyScheduleGroup `json:"groups"`
-	UpdatedAt time.Time           `json:"updated_at"`
+	SourceUploadedAt *time.Time          `json:"source_uploaded_at,omitempty"`
+	Published        bool                `json:"published"`
+	Month            string              `json:"month"`
+	Holidays         []int               `json:"holidays"`
+	Groups           []dutyScheduleGroup `json:"groups"`
+	UpdatedAt        time.Time           `json:"updated_at"`
 }
 
 var dutyScheduleMu sync.RWMutex
+
+func scheduleReady(document dutyScheduleDocument) bool {
+	if document.SourceUploadedAt == nil || len(document.Groups) == 0 {
+		return false
+	}
+	for _, group := range document.Groups {
+		for _, staff := range group.Staff {
+			for _, review := range staff.Review {
+				if review {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
 
 func excludedScheduleSurgeon(name string) bool {
 	parts := strings.Fields(strings.ToLower(strings.ReplaceAll(name, "ё", "е")))
@@ -178,6 +196,7 @@ func loadDutySchedule(month string) (dutyScheduleDocument, error) {
 		return dutyScheduleDocument{}, err
 	}
 	filterScheduleStaff(&document)
+	document.Published = scheduleReady(document)
 	return document, nil
 }
 
@@ -221,6 +240,12 @@ func (h HttpServer) GetDutySchedule(w http.ResponseWriter, r *http.Request) {
 		server.InternalError("duty-schedule", err, w, r)
 		return
 	}
+	user, _ := currentAuthenticatedUser(r)
+	if user.Role != "admin" && !document.Published {
+		document.Groups = []dutyScheduleGroup{}
+		document.Holidays = []int{}
+	}
+	w.Header().Set("Cache-Control", "no-store")
 	server.RespondOK(document, w, r)
 }
 
@@ -236,7 +261,13 @@ func (h HttpServer) PutDutySchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dutyScheduleMu.Lock()
-	err := saveDutySchedule(document)
+	previous, err := loadDutySchedule(month)
+	if err == nil {
+		// Only the recognition endpoint can establish upload provenance.
+		document.SourceUploadedAt = previous.SourceUploadedAt
+		document.Published = scheduleReady(document)
+		err = saveDutySchedule(document)
+	}
 	dutyScheduleMu.Unlock()
 	if err != nil {
 		server.InternalError("duty-schedule", err, w, r)

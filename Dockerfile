@@ -44,7 +44,9 @@ ENTRYPOINT ["/usr/local/bin/goose", "-dir", "/app/migrations"]
 
 FROM runtime-base AS runtime
 
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg python3 py3-opencv py3-numpy tesseract-ocr tesseract-ocr-data-rus tesseract-ocr-data-eng
+
+COPY scripts/schedule_ocr.py /app/scripts/schedule_ocr.py
 
 COPY --from=build /out/viewer-backend /usr/local/bin/viewer-backend
 COPY internal/sql/migrations /app/migrations
