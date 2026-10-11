@@ -105,6 +105,9 @@ func photoSchedule(result schedulePhotoResult, month string) (dutyScheduleDocume
 	}
 	seen := map[string]bool{}
 	for _, row := range result.Rows {
+		if row.Group == "surgeons" && excludedScheduleSurgeon(row.Name) {
+			continue
+		}
 		if row.Group != "surgeons" && row.Group != "nurses" {
 			return doc, errors.New("Некорректная группа сотрудников")
 		}

@@ -40,6 +40,27 @@ type dutyScheduleDocument struct {
 
 var dutyScheduleMu sync.RWMutex
 
+func excludedScheduleSurgeon(name string) bool {
+	parts := strings.Fields(strings.ToLower(strings.ReplaceAll(name, "ё", "е")))
+	return len(parts) > 0 && parts[0] == "терешин"
+}
+
+func filterScheduleStaff(document *dutyScheduleDocument) {
+	for index := range document.Groups {
+		group := &document.Groups[index]
+		if group.ID != "surgeons" {
+			continue
+		}
+		staff := group.Staff[:0]
+		for _, person := range group.Staff {
+			if !excludedScheduleSurgeon(person.Name) {
+				staff = append(staff, person)
+			}
+		}
+		group.Staff = staff
+	}
+}
+
 func dutySchedulePath(month string) string {
 	directory := strings.TrimSpace(os.Getenv("PLANS_DIR"))
 	if directory == "" {
@@ -64,6 +85,7 @@ func defaultDutySchedule(month string) dutyScheduleDocument {
 }
 
 func normalizeDutySchedule(document *dutyScheduleDocument, month string) error {
+	filterScheduleStaff(document)
 	date, err := time.Parse("2006-01", month)
 	if err != nil {
 		return errors.New("month must use YYYY-MM format")
@@ -155,6 +177,7 @@ func loadDutySchedule(month string) (dutyScheduleDocument, error) {
 	if err := json.NewDecoder(file).Decode(&document); err != nil {
 		return dutyScheduleDocument{}, err
 	}
+	filterScheduleStaff(&document)
 	return document, nil
 }
 
