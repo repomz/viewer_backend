@@ -121,6 +121,9 @@ services:
       REPORTS_DIR: ${REPORTS_DIR:-/app/reports}
       REPORT_AGENT_ID: ${REPORT_AGENT_ID:-2}
       PLANS_DIR: ${PLANS_DIR:-/app/plans}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_VISION_MODEL: ${DEEPSEEK_VISION_MODEL:-deepseek-flash}
       XA_CACHE_DIR: ${XA_CACHE_DIR:-/app/xa-cache}
       XA_CACHE_TIMEOUT_SECONDS: ${XA_CACHE_TIMEOUT_SECONDS:-120}
       XA_CACHE_FFMPEG_PATH: ${XA_CACHE_FFMPEG_PATH:-/usr/bin/ffmpeg}

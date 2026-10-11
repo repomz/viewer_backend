@@ -22,6 +22,7 @@ type dutyScheduleStaff struct {
 	Name   string            `json:"name"`
 	Role   string            `json:"role,omitempty"`
 	Shifts map[string]string `json:"shifts"`
+	Review map[string]bool   `json:"review,omitempty"`
 }
 
 type dutyScheduleGroup struct {
@@ -63,16 +64,18 @@ func defaultDutySchedule(month string) dutyScheduleDocument {
 }
 
 func normalizeDutySchedule(document *dutyScheduleDocument, month string) error {
-	if _, err := time.Parse("2006-01", month); err != nil {
+	date, err := time.Parse("2006-01", month)
+	if err != nil {
 		return errors.New("month must use YYYY-MM format")
 	}
+	days := date.AddDate(0, 1, -1).Day()
 	document.Month = month
 	if len(document.Groups) == 0 || len(document.Groups) > 12 {
 		return errors.New("schedule groups have an invalid size")
 	}
 	holidaySet := map[int]bool{}
 	for _, day := range document.Holidays {
-		if day < 1 || day > 31 {
+		if day < 1 || day > days {
 			return fmt.Errorf("invalid holiday day: %d", day)
 		}
 		holidaySet[day] = true
@@ -82,20 +85,27 @@ func normalizeDutySchedule(document *dutyScheduleDocument, month string) error {
 		document.Holidays = append(document.Holidays, day)
 	}
 	sort.Ints(document.Holidays)
+	groupIDs := map[string]bool{}
 	for groupIndex := range document.Groups {
 		group := &document.Groups[groupIndex]
 		group.ID = strings.TrimSpace(group.ID)
 		group.Label = strings.TrimSpace(group.Label)
-		if group.ID == "" || group.Label == "" || len(group.Staff) > 100 {
+		if group.ID == "" || group.Label == "" || len(group.Staff) > 100 || groupIDs[group.ID] {
 			return errors.New("invalid schedule group")
 		}
+		groupIDs[group.ID] = true
+		staffIDs := map[string]bool{}
 		for staffIndex := range group.Staff {
 			staff := &group.Staff[staffIndex]
 			staff.ID = strings.TrimSpace(staff.ID)
 			staff.Name = strings.TrimSpace(staff.Name)
 			staff.Role = strings.TrimSpace(staff.Role)
-			if staff.ID == "" || staff.Name == "" {
+			if staff.ID == "" || staff.Name == "" || staffIDs[staff.ID] || len(staff.Name) > 200 {
 				return errors.New("invalid schedule staff member")
+			}
+			staffIDs[staff.ID] = true
+			if staff.Role != "" && staff.Role != "day_only" && staff.Role != "duty_only" {
+				return errors.New("invalid shift role")
 			}
 			if staff.Shifts == nil {
 				staff.Shifts = map[string]string{}
@@ -103,7 +113,7 @@ func normalizeDutySchedule(document *dutyScheduleDocument, month string) error {
 			for day, value := range staff.Shifts {
 				parts := strings.Split(day, ":")
 				number, err := strconv.Atoi(parts[0])
-				if err != nil || number < 1 || number > 31 {
+				if err != nil || number < 1 || number > days {
 					return fmt.Errorf("invalid shift day: %s", day)
 				}
 				if len(parts) > 2 || (len(parts) == 2 && parts[1] != "day" && parts[1] != "duty") {
@@ -117,6 +127,13 @@ func normalizeDutySchedule(document *dutyScheduleDocument, month string) error {
 					delete(staff.Shifts, day)
 				} else {
 					staff.Shifts[day] = value
+				}
+			}
+			for key := range staff.Review {
+				parts := strings.Split(key, ":")
+				number, err := strconv.Atoi(parts[0])
+				if err != nil || number < 1 || number > days || len(parts) != 2 || (parts[1] != "day" && parts[1] != "duty") {
+					return errors.New("invalid review cell")
 				}
 			}
 		}
@@ -138,19 +155,6 @@ func loadDutySchedule(month string) (dutyScheduleDocument, error) {
 	if err := json.NewDecoder(file).Decode(&document); err != nil {
 		return dutyScheduleDocument{}, err
 	}
-	canonical := defaultDutySchedule(month)
-	for _, group := range document.Groups {
-		for _, staff := range group.Staff {
-			for index := range canonical.Groups[0].Staff {
-				if canonical.Groups[0].Staff[index].ID == staff.ID {
-					canonical.Groups[0].Staff[index].Shifts = staff.Shifts
-				}
-			}
-		}
-	}
-	canonical.Holidays = document.Holidays
-	canonical.UpdatedAt = document.UpdatedAt
-	document = canonical
 	return document, nil
 }
 
