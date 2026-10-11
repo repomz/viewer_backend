@@ -101,6 +101,8 @@ def read_cell(cell):
         text, confidence = ocr(crop, psm=mode, whitelist="012468OB")
         value = text.replace(" ", "").replace("0", "О").replace("O", "О").replace("B", "Б")
         readings.append((value, confidence))
+        if len(readings) == 2 and readings[0][0] == readings[1][0] and value in VALID and max(c for _, c in readings) >= 35:
+            break  # A third vote cannot change an already confident majority.
     valid = [(v, c) for v, c in readings if v in VALID]
     votes = Counter(v for v, _ in valid)
     if valid and (len(votes) == 1 or votes.most_common(1)[0][1] >= 2):

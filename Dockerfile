@@ -44,7 +44,14 @@ ENTRYPOINT ["/usr/local/bin/goose", "-dir", "/app/migrations"]
 
 FROM runtime-base AS runtime
 
-RUN apk add --no-cache ffmpeg python3 py3-opencv py3-numpy tesseract-ocr tesseract-ocr-data-rus tesseract-ocr-data-eng
+RUN apk add --no-cache ffmpeg python3 py3-opencv py3-numpy tesseract-ocr \
+    && mkdir -p /app/tessdata \
+    && wget -q -O /app/tessdata/eng.traineddata https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata \
+    && wget -q -O /app/tessdata/rus.traineddata https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/rus.traineddata \
+    && echo '7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2  /app/tessdata/eng.traineddata' | sha256sum -c - \
+    && echo 'e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225  /app/tessdata/rus.traineddata' | sha256sum -c -
+
+ENV TESSDATA_PREFIX=/app/tessdata
 
 COPY scripts/schedule_ocr.py /app/scripts/schedule_ocr.py
 
