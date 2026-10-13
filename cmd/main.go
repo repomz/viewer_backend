@@ -133,6 +133,8 @@ func run() error {
 		_, _ = fmt.Fprintf(w, "DICOM viewer API %s", version)
 	}).Methods("GET")
 	router.HandleFunc("/version", versionHandler).Methods(http.MethodGet)
+	router.HandleFunc("/agent/protocols/reconcile", httpServer.ReconcileProtocolBatch).Methods(http.MethodPost)
+	router.HandleFunc("/agent/releases/{artifact}", httpServer.AgentRelease).Methods(http.MethodGet)
 	router.HandleFunc("/auth/login", httpServer.Login).Methods(http.MethodPost)
 	router.HandleFunc("/auth/app-open", httpServer.RequireAuth(httpServer.RecordAppOpen)).Methods(http.MethodPost)
 	router.HandleFunc("/auth/me", httpServer.RequireAuth(httpServer.GetCurrentUser)).Methods(http.MethodGet)
