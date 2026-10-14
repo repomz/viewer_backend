@@ -491,12 +491,13 @@ func (h HttpServer) DeleteDriveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 type loginMetric struct {
-	DiskUsed    int64  `json:"disk_used_bytes"`
-	UserID      int64  `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	Login       string `json:"login"`
-	Count       int64  `json:"count"`
-	Total       int64  `json:"total"`
+	Times       []time.Time `json:"times"`
+	DiskUsed    int64       `json:"disk_used_bytes"`
+	UserID      int64       `json:"user_id"`
+	DisplayName string      `json:"display_name"`
+	Login       string      `json:"login"`
+	Count       int64       `json:"count"`
+	Total       int64       `json:"total"`
 }
 
 type platformMetricsResponse struct {
@@ -567,6 +568,14 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 	location, _ := time.LoadLocation("Asia/Tomsk")
 	now := time.Now().In(location)
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+	if value := r.URL.Query().Get("date"); value != "" {
+		parsed, err := time.ParseInLocation("2006-01-02", value, location)
+		if err != nil || parsed.After(start) {
+			writePlatformError(w, 400, "Некорректная дата")
+			return
+		}
+		start = parsed
+	}
 	end := start.AddDate(0, 0, 1)
 	rows, err := h.sqlDB.QueryContext(r.Context(), `
 		SELECT u.id, u.display_name, u.login, COUNT(e.id) FILTER (WHERE e.logged_at >= $1 AND e.logged_at < $2), COUNT(e.id),
@@ -593,6 +602,40 @@ func (h HttpServer) GetPlatformMetrics(w http.ResponseWriter, r *http.Request) {
 		response.AllTimeLogins += item.Total
 		response.Logins = append(response.Logins, item)
 	}
+	if rows.Err() != nil {
+		writePlatformError(w, 500, "Не удалось получить метрики")
+		return
+	}
+	rows.Close()
+	events, err := h.sqlDB.QueryContext(r.Context(), `SELECT e.user_id, e.logged_at FROM login_events e JOIN app_users u ON u.id=e.user_id WHERE u.role <> 'admin' AND e.logged_at >= $1 AND e.logged_at < $2 ORDER BY e.logged_at DESC`, start, end)
+	if err != nil {
+		writePlatformError(w, 500, "Не удалось получить историю входов")
+		return
+	}
+	for i := range response.Logins {
+		response.Logins[i].Times = []time.Time{}
+	}
+	for events.Next() {
+		var id int64
+		var at time.Time
+		if err := events.Scan(&id, &at); err != nil {
+			events.Close()
+			writePlatformError(w, 500, "Не удалось прочитать историю входов")
+			return
+		}
+		for i := range response.Logins {
+			if response.Logins[i].UserID == id {
+				response.Logins[i].Times = append(response.Logins[i].Times, at)
+				break
+			}
+		}
+	}
+	if events.Err() != nil {
+		events.Close()
+		writePlatformError(w, 500, "Не удалось прочитать историю входов")
+		return
+	}
+	events.Close()
 	if err := h.sqlDB.QueryRowContext(r.Context(), `
 		SELECT COUNT(*) FROM studies WHERE NOT deleted AND LOWER(BTRIM(study_type)) NOT IN ('xa', 'ct')
 	`).Scan(&response.ProtocolCount); err != nil {

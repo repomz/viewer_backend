@@ -78,6 +78,10 @@ func (h HttpServer) CreateUserRequest(w http.ResponseWriter, r *http.Request) {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}
+	if strings.EqualFold(strings.TrimSpace(request.Command), "update_agent_config") {
+		writePlatformError(w, 403, "Используйте административный экран настроек агента")
+		return
+	}
 	if err := request.Validate(); err != nil {
 		server.RespondWithError(err, w, r)
 		return

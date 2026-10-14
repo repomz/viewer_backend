@@ -195,6 +195,7 @@ func run() error {
 	router.HandleFunc("/agent_logs", httpServer.RequireAdmin(httpServer.GetAgentLogs)).Methods(http.MethodGet)
 	router.HandleFunc("/agent_logs/alerts", httpServer.RequireAdmin(httpServer.GetAgentLogAlerts)).Methods(http.MethodGet)
 	router.HandleFunc("/agent_configurations", httpServer.RequireAdmin(httpServer.GetAgentConfigurations)).Methods(http.MethodGet)
+	router.HandleFunc("/agent_configurations/{agent_id}", httpServer.RequireAdmin(httpServer.UpdateAgentConfiguration)).Methods(http.MethodPut)
 
 	router.HandleFunc("/user_requests", httpServer.CreateUserRequest).Methods(http.MethodPost)
 	router.HandleFunc("/user_requests", httpServer.ClaimUserRequest).Methods(http.MethodGet)
