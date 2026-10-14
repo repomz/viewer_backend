@@ -24,7 +24,7 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 	normalize := func(s string) string {
 		return strings.Join(strings.Fields(strings.ReplaceAll(strings.ToLower(s), "ё", "е")), " ")
 	}
-	matched, conflict := 0, false
+	matched, conflict, identityConflict := 0, false, false
 	for _, row := range records {
 		if probe.Room != 0 && row.Room != 0 && probe.Room != row.Room {
 			continue
@@ -39,16 +39,19 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 				conflict = true
 			}
 		} else if samePatient && sameTime {
-			conflict = true
+			identityConflict = true
 		}
 	}
-	if conflict || matched > 1 {
+	if identityConflict || matched > 1 {
 		return "review"
 	}
+	// A unique full identity proves presence. Numbers may repeat in historical
+	// documents, even within one room; an unrelated number collision must not
+	// turn a verified receipt into a missing/manual-review result.
 	if matched == 1 {
 		return "present"
 	}
-	if probe.Room == 0 {
+	if conflict || probe.Room == 0 {
 		return "review"
 	}
 	return "missing"
