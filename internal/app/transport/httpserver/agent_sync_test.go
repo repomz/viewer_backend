@@ -41,8 +41,10 @@ func TestProbeStatus(t *testing.T) {
 	if probeStatus(p, []protocolProbe{other}) != "review" {
 		t.Fatal("renumbered protocol")
 	}
-	if probeStatus(p, []protocolProbe{p, other}) != "review" {
-		t.Fatal("ambiguous same-patient same-time records still require review")
+	for _, records := range [][]protocolProbe{{p, other}, {other, p}} {
+		if probeStatus(p, records) != "present" {
+			t.Fatal("another operation at the same time must not hide an exact receipt")
+		}
 	}
 	p.Room = 0
 	if probeStatus(p, nil) != "review" {

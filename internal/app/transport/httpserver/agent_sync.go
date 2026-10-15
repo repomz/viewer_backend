@@ -42,7 +42,7 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 			identityConflict = true
 		}
 	}
-	if identityConflict || matched > 1 {
+	if matched > 1 {
 		return "review"
 	}
 	// A unique full identity proves presence. Numbers may repeat in historical
@@ -51,7 +51,7 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 	if matched == 1 {
 		return "present"
 	}
-	if conflict || probe.Room == 0 {
+	if identityConflict || conflict || probe.Room == 0 {
 		return "review"
 	}
 	return "missing"
