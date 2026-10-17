@@ -10,27 +10,52 @@ import (
 )
 
 type StudyRequest struct {
-	Room             int32     `json:"room"`
-	Conclusion       *string   `json:"conclusion"`
-	Description      string    `json:"description"`
-	Options          string    `json:"options"`
-	BirthDate        string    `json:"birth_date"`
-	StudyID          string    `json:"study_id"`
-	Patient          string    `json:"patient"`
-	Age              int32     `json:"age"`
-	Department       string    `json:"department"`
-	DepartmentReview string    `json:"department_review,omitempty"`
-	NameOperation    string    `json:"name_operation"`
-	StudyType        string    `json:"study_type"`
-	DescrOperation   string    `json:"descr_operation"`
-	Recommendation   string    `json:"recommendation"`
-	TimeBeginning    time.Time `json:"time_beginning"`
-	TimeDuration     int32     `json:"time_duration"`
-	Surgeon          string    `json:"surgeon"`
-	DicomLink        string    `json:"dicom_link"`
+	Source           *ProtocolSource `json:"source,omitempty"`
+	Room             int32           `json:"room"`
+	Conclusion       *string         `json:"conclusion"`
+	Description      string          `json:"description"`
+	Options          string          `json:"options"`
+	BirthDate        string          `json:"birth_date"`
+	StudyID          string          `json:"study_id"`
+	Patient          string          `json:"patient"`
+	Age              int32           `json:"age"`
+	Department       string          `json:"department"`
+	DepartmentReview string          `json:"department_review,omitempty"`
+	NameOperation    string          `json:"name_operation"`
+	StudyType        string          `json:"study_type"`
+	DescrOperation   string          `json:"descr_operation"`
+	Recommendation   string          `json:"recommendation"`
+	TimeBeginning    time.Time       `json:"time_beginning"`
+	TimeDuration     int32           `json:"time_duration"`
+	Surgeon          string          `json:"surgeon"`
+	DicomLink        string          `json:"dicom_link"`
+}
+
+// FileID survives edits and moves. Paths are only provenance, never server paths.
+type ProtocolSource struct {
+	AgentID int    `json:"agent_id"`
+	FileID  string `json:"file_id"`
+	Root    string `json:"root"`
+	Path    string `json:"path"`
+}
+
+func (s ProtocolSource) Validate() error {
+	id, err := uuid.Parse(s.FileID)
+	if err != nil || id == uuid.Nil || s.AgentID <= 0 || strings.TrimSpace(s.Root) == "" || strings.TrimSpace(s.Path) == "" || len(s.Root) > 2048 || len(s.Path) > 4096 {
+		return fmt.Errorf("invalid protocol source")
+	}
+	return nil
 }
 
 func (s *StudyRequest) Validate() error {
+	if s.Source != nil {
+		if err := s.Source.Validate(); err != nil {
+			return err
+		}
+		if strings.EqualFold(s.StudyType, "xa") || strings.EqualFold(s.StudyType, "ct") {
+			return fmt.Errorf("source is only supported for operation protocols")
+		}
+	}
 	if s.Room < 0 || s.Room > 2 {
 		return fmt.Errorf("invalid room: expected 1 or 2")
 	}

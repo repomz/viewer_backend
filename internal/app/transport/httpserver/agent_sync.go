@@ -9,15 +9,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/repomz/viewer_backend/internal/app/common/server"
+	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
 type protocolProbe struct {
-	StudyID string    `json:"study_id"`
-	Patient string    `json:"patient"`
-	Room    int       `json:"room"`
-	Time    time.Time `json:"time_beginning"`
+	Source  *httpmodels.ProtocolSource `json:"source,omitempty"`
+	StudyID string                     `json:"study_id"`
+	Patient string                     `json:"patient"`
+	Room    int                        `json:"room"`
+	Time    time.Time                  `json:"time_beginning"`
 }
 
 func probeStatus(probe protocolProbe, records []protocolProbe) string {
@@ -57,7 +60,7 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 	return "missing"
 }
 
-// ReconcileProtocolBatch is read-only: it never replaces manually edited fields.
+// Reconciliation may register file provenance, but never replaces clinical fields.
 func (h HttpServer) ReconcileProtocolBatch(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	var request struct {
@@ -75,6 +78,10 @@ func (h HttpServer) ReconcileProtocolBatch(w http.ResponseWriter, r *http.Reques
 	}
 	from := time.Date(request.Year, 1, 1, 0, 0, 0, 0, location)
 	for _, p := range request.Items {
+		if p.Source != nil && p.Source.Validate() != nil {
+			http.Error(w, "invalid protocol source", 400)
+			return
+		}
 		if strings.TrimSpace(p.Patient) == "" || strings.TrimSpace(p.StudyID) == "" || p.Room < 0 || p.Room > 2 || p.Time.Before(from) || !p.Time.Before(from.AddDate(1, 0, 0)) {
 			http.Error(w, "invalid protocol identity", 400)
 			return
@@ -99,9 +106,37 @@ func (h HttpServer) ReconcileProtocolBatch(w http.ResponseWriter, r *http.Reques
 		server.RespondWithError(err, w, r)
 		return
 	}
+	rows.Close()
 	statuses := make([]string, len(request.Items))
 	for i, p := range request.Items {
 		statuses[i] = probeStatus(p, records)
+		if statuses[i] == "present" && p.Source != nil {
+			tx, txErr := h.sqlDB.BeginTx(r.Context(), nil)
+			if txErr != nil {
+				server.RespondWithError(txErr, w, r)
+				return
+			}
+			txErr = lockProtocolSources(r.Context(), tx)
+			if txErr == nil {
+				id, findErr := findProtocol(r.Context(), tx, p)
+				if findErr != nil {
+					txErr = findErr
+				} else if id == uuid.Nil {
+					statuses[i] = "review"
+				} else {
+					txErr = bindProtocolSource(r.Context(), tx, p.Source, id)
+				}
+			}
+			if txErr != nil {
+				tx.Rollback()
+				server.RespondWithError(txErr, w, r)
+				return
+			}
+			if txErr = tx.Commit(); txErr != nil {
+				server.RespondWithError(txErr, w, r)
+				return
+			}
+		}
 	}
 	server.RespondOK(map[string]any{"statuses": statuses}, w, r)
 }

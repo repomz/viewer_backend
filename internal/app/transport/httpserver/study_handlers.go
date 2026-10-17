@@ -302,8 +302,18 @@ func (h HttpServer) CreateStudy(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	insertedStudy, err := h.studyService.CreateStudy(r.Context(), study)
+	var insertedStudy domain.Study
+	var err error
+	if h.sqlDB != nil && studyRequest.StudyType != "xa" && studyRequest.StudyType != "ct" {
+		insertedStudy, err = h.upsertProtocol(r.Context(), studyRequest)
+	} else {
+		insertedStudy, err = h.studyService.CreateStudy(r.Context(), study)
+	}
 	if err != nil {
+		if errors.Is(err, errProtocolAmbiguous) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		server.RespondWithError(err, w, r)
 		return
 	}

@@ -15,7 +15,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: protocol_test_local
+          POSTGRES_DB: protocol_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Test including source lifecycle on PostgreSQL
+        env:
+          VIEWER_TEST_DSN: postgres://postgres:protocol_test_local@127.0.0.1:5432/protocol_test?sslmode=disable
+        run: go test ./...
   publish:
+    needs: checks
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
