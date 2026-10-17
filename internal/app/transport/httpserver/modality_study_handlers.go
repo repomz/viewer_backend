@@ -33,7 +33,8 @@ func (h HttpServer) createModalityStudy(
 	modality string,
 ) {
 	var request httpmodels.ModalityStudyRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	// Large CTs contain thousands of signed URLs, not the DICOM pixels themselves.
+	if err := decodeJSONLimit(w, r, &request, 32<<20); err != nil {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}

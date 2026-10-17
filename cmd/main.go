@@ -205,6 +205,7 @@ func run() error {
 	router.HandleFunc("/user_requests/{request_id}", httpServer.GetUserRequest).Methods(http.MethodGet)
 	router.HandleFunc("/user_requests/{request_id}", httpServer.DeleteUserRequest).Methods(http.MethodDelete)
 	router.HandleFunc("/user_requests/{request_id}/result", httpServer.RecordUserRequestResult).Methods(http.MethodPost)
+	router.HandleFunc("/user_requests/{request_id}/progress", httpServer.RecordTransferProgress).Methods(http.MethodPost)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

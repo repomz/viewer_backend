@@ -62,6 +62,9 @@ func (r *ModalityStudyRequest) Validate(expectedModality string) error {
 	if len(r.DicomFiles) == 0 {
 		return fmt.Errorf("%w: dicom_files", domain.ErrRequired)
 	}
+	if len(r.DicomFiles) > 50000 {
+		return fmt.Errorf("%w: too many dicom_files", domain.ErrInvalidRequest)
+	}
 	for index := range r.DicomFiles {
 		file := &r.DicomFiles[index]
 		file.Name = strings.TrimSpace(file.Name)

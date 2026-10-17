@@ -92,7 +92,11 @@ func (h HttpServer) CreateUserRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := h.userRequestService.Create(r.Context(), domain.NewUserRequest{
+	create := h.userRequestService.Create
+	if h.sqlDB != nil && (request.Command == "get_ct" || request.Command == "get_xa") {
+		create = h.createTransfer
+	}
+	created, err := create(r.Context(), domain.NewUserRequest{
 		UserID:      request.UserID,
 		AgentID:     request.AgentID,
 		RequestType: request.RequestType,
