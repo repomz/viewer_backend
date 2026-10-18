@@ -84,6 +84,20 @@ func TestAgentFileAdminOnly(t *testing.T) {
 	}
 }
 
+func TestAgentFileCapabilitySurvivesConfigurationSanitization(t *testing.T) {
+	raw, err := safeAgentConfiguration(json.RawMessage(`{"version":"0.2.21","remote_protocol_files":true,"password":"secret"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err = json.Unmarshal(raw, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["remote_protocol_files"] != true || result["password"] != nil {
+		t.Fatal("capability lost or credentials leaked")
+	}
+}
+
 func TestAgentFileCapabilityNotInPublicResponse(t *testing.T) {
 	job := domain.UserRequest{Command: "send_protocol_file", Payload: json.RawMessage(`{"path":"x.docx","upload_token":"secret","drive_owner_id":1}`)}
 	response := toUserRequestResponse(job)

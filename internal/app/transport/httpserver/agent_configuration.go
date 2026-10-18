@@ -17,6 +17,7 @@ func safeAgentConfiguration(raw json.RawMessage) (json.RawMessage, error) {
 	var config struct {
 		Version             string          `json:"version"`
 		RemoteConfiguration bool            `json:"remote_configuration"`
+		RemoteProtocolFiles bool            `json:"remote_protocol_files"`
 		Description         string          `json:"description"`
 		LogDir              string          `json:"log_dir"`
 		StateFile           string          `json:"state_file"`
