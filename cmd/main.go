@@ -144,6 +144,9 @@ func run() error {
 	router.HandleFunc("/admin/metrics", httpServer.RequireAdmin(httpServer.GetPlatformMetrics)).Methods(http.MethodGet)
 	router.HandleFunc("/drive", httpServer.RequireAuth(httpServer.ListDriveFiles)).Methods(http.MethodGet)
 	router.HandleFunc("/drive", httpServer.RequireAuth(httpServer.UploadDriveFile)).Methods(http.MethodPost)
+	router.HandleFunc("/agent_files", httpServer.RequireAdmin(httpServer.RequestAgentFile)).Methods(http.MethodPost)
+	router.HandleFunc("/agent_files", httpServer.RequireAdmin(httpServer.ListAgentFileRequests)).Methods(http.MethodGet)
+	router.HandleFunc("/agent_files/{request_id}", httpServer.ReceiveAgentFile).Methods(http.MethodPost)
 	router.HandleFunc("/drive/{file_id}", httpServer.RequireAuth(httpServer.DownloadDriveFile)).Methods(http.MethodGet)
 	router.HandleFunc("/drive/{file_id}", httpServer.RequireAuth(httpServer.DeleteDriveFile)).Methods(http.MethodDelete)
 

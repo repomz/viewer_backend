@@ -78,7 +78,7 @@ func (h HttpServer) CreateUserRequest(w http.ResponseWriter, r *http.Request) {
 		server.BadRequest("invalid-json", err, w, r)
 		return
 	}
-	if strings.EqualFold(strings.TrimSpace(request.Command), "update_agent_config") {
+	if strings.EqualFold(strings.TrimSpace(request.Command), "update_agent_config") || strings.EqualFold(strings.TrimSpace(request.Command), "send_protocol_file") {
 		writePlatformError(w, 403, "Используйте административный экран настроек агента")
 		return
 	}
@@ -179,6 +179,14 @@ func (h HttpServer) GetUserRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func toUserRequestResponse(request domain.UserRequest) httpmodels.UserRequestResponse {
+	if request.Command == "send_protocol_file" {
+		var payload map[string]any
+		if json.Unmarshal(request.Payload, &payload) == nil {
+			delete(payload, "upload_token")
+			delete(payload, "drive_owner_id")
+			request.Payload, _ = json.Marshal(payload)
+		}
+	}
 	return httpmodels.UserRequestResponse{
 		ID:             request.ID,
 		CreatedAt:      request.CreatedAt,

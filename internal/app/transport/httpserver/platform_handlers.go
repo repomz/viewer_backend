@@ -358,6 +358,9 @@ func (h HttpServer) UploadDriveFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := uuid.NewString()
+	if requestedID, ok := r.Context().Value(agentFileIDKey{}).(string); ok {
+		id = requestedID
+	}
 	storedName := driveObjectKey(user.ID, id)
 	target, err := os.CreateTemp("", ".viewer-drive-*.upload")
 	var tempPath string
@@ -391,6 +394,21 @@ func (h HttpServer) UploadDriveFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var used int64
+	if _, ok := r.Context().Value(agentFileIDKey{}).(string); ok {
+		var existing driveFileResponse
+		err := tx.QueryRowContext(r.Context(), `SELECT id, original_name, content_type, size_bytes, created_at FROM drive_files WHERE id=$1 AND user_id=$2`, id, user.ID).Scan(&existing.ID, &existing.Name, &existing.ContentType, &existing.SizeBytes, &existing.CreatedAt)
+		if err == nil {
+			_ = os.Remove(tempPath)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(existing)
+			return
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			_ = os.Remove(tempPath)
+			writePlatformError(w, 500, "Не удалось проверить файл")
+			return
+		}
+	}
 	if err = tx.QueryRowContext(r.Context(), `SELECT COALESCE(SUM(size_bytes), 0) FROM drive_files WHERE user_id = $1`, user.ID).Scan(&used); err != nil {
 		_ = os.Remove(tempPath)
 		writePlatformError(w, http.StatusInternalServerError, "Не удалось проверить свободное место")
