@@ -13,10 +13,53 @@ import io
 import cv2
 
 import numpy as np
-from schedule_ocr import read_cell, recognize, ocr, subprocess_ocr, grid
+from schedule_ocr import read_cell, recognize, ocr, subprocess_ocr, grid, nurse_rows, merge_row
 
 
 class RosterOCRTest(unittest.TestCase):
+    def test_nurse_day_and_night_do_not_overwrite_each_other(self):
+        rows = []
+        for values in ([{"value": "6", "uncertain": False}], [{"value": "18", "uncertain": False}]):
+            for role, cells in nurse_rows(values):
+                merge_row(rows, "Медсестра А.А.", "nurses", role, cells)
+        self.assertEqual([(r["row"], r["cells"][0]) for r in rows], [("day", {"value":"6", "uncertain":False}), ("duty", {"value":"18", "uncertain":False})])
+
+    @unittest.skipUnless(os.getenv("SCHEDULE_NOVEMBER_PHOTO"), "November photo not supplied")
+    def test_november_rotated_photo(self):
+        result = recognize(Path(os.environ["SCHEDULE_NOVEMBER_PHOTO"]).read_bytes(), "2026-11")
+        workdays = [2,5,6,9,10,11,12,13,16,17,18,19,20,23,24,25,26,27,30]
+        expected = {
+            ("Киргизов", "day"): {**dict.fromkeys(workdays, "6"), 3:"5"},
+            ("Киргизов", "duty"): dict.fromkeys([3,5,10,12,17,19,24], "18"),
+            ("Идрисов", "day"): dict.fromkeys([6,9,10,13,18,19,20,23,24,26,30], "6"),
+            ("Идрисов", "duty"): {**dict.fromkeys([6,9,13,20,23,26], "18"), 1:"24",15:"24",28:"24"},
+            ("Старков", "day"): dict.fromkeys([5,6,10,11,12,13,16,17,18,19,20,25,26,27,30], "6"),
+            ("Старков", "duty"): {**dict.fromkeys([4,8,14,22], "24"),11:"18",27:"18",30:"18"},
+            ("Шпилевой", "day"): {2:"6",3:"5",5:"6",6:"6",**dict.fromkeys(range(9,31),"О")},
+            ("Шпилевой", "duty"): {2:"18",7:"24",**dict.fromkeys(range(9,31),"О")},
+            ("Суслов", "duty"): {16:"18",18:"18",21:"24",25:"18",29:"24"},
+            ("Воронова", "duty"): {4:"24",8:"24",22:"24",27:"16"},
+            ("Ельцова", "duty"): {1:"О",2:"16",13:"16",21:"24",25:"16"},
+            ("Ильина", "day"): {**dict.fromkeys(workdays,"6"),3:"5"},
+            ("Ильина", "duty"): {7:"24",12:"18",23:"18",30:"18"},
+            ("Кайрова", "duty"): {3:"16",15:"24",28:"24"},
+            ("Протасова", "day"): {**dict.fromkeys(workdays,"6"),3:"5"},
+            ("Протасова", "duty"): dict.fromkeys([5,10,16,19,24],"18"),
+            ("Суханова", "duty"): {9:"16",18:"16",26:"16"},
+            ("Шишкина", "duty"): {1:"24",6:"16",14:"24"},
+            ("Штейнле", "duty"): {1:"О",11:"16",17:"16",20:"16",29:"24"},
+        }
+        self.assertEqual(len(result["rows"]), len(expected))
+        certain = 0
+        for row in result["rows"]:
+            truth = expected[(row["name"].split()[0],row["row"])]
+            self.assertEqual(len(row["cells"]),30)
+            for day, cell in enumerate(row["cells"],1):
+                if not cell["uncertain"]:
+                    certain += 1
+                    self.assertEqual(cell["value"],truth.get(day,""),(row["name"],row["row"],day))
+        self.assertGreater(certain,535)
+
     def test_reused_engine_matches_command_line(self):
         def compare(value):
             image = np.full((90, 190), 255, np.uint8)

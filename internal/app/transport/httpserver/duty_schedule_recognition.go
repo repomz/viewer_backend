@@ -95,7 +95,7 @@ func photoSchedule(result schedulePhotoResult, month string) (dutyScheduleDocume
 				value = "О"
 			}
 			switch value {
-			case "", "6", "8", "16", "18", "24", "О", "Б":
+			case "", "5", "6", "8", "16", "18", "24", "О", "Б":
 			default:
 				value = ""
 				cell.Uncertain = true

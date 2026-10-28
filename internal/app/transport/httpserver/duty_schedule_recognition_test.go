@@ -20,6 +20,7 @@ func TestDutySchedulePhotoAndReviewRoundTrip(t *testing.T) {
 	t.Setenv("PLANS_DIR", t.TempDir())
 	photo := photoFixture()
 	photo.Rows[1].Cells[0] = schedulePhotoCell{Value: "16", Uncertain: true}
+	photo.Rows[0].Cells[2] = schedulePhotoCell{Value: "5"}
 	doc, err := photoSchedule(photo, "2026-10")
 	if err != nil {
 		t.Fatal(err)
@@ -33,6 +34,9 @@ func TestDutySchedulePhotoAndReviewRoundTrip(t *testing.T) {
 	}
 	if len(got.Groups) != 2 || got.Groups[1].Staff[0].Shifts["1:duty"] != "16" || !got.Groups[1].Staff[0].Review["1:duty"] {
 		t.Fatal("nurses or review metadata lost")
+	}
+	if got.Groups[0].Staff[0].Shifts["3:duty"] != "5" || got.Groups[0].Staff[0].Review["3:duty"] {
+		t.Fatal("five-hour shift lost or incorrectly flagged")
 	}
 }
 func TestDutySchedulePhotoValidation(t *testing.T) {

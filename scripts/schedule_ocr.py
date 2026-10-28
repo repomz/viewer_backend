@@ -24,7 +24,7 @@ import numpy as np
 
 cv2.setNumThreads(1)
 os.environ["OMP_THREAD_LIMIT"] = "1"
-VALID = {"6", "8", "16", "18", "24", "О", "Б"}
+VALID = {"5", "6", "8", "16", "18", "24", "О", "Б"}
 MONTHS = ["январ", "феврал", "март", "апрел", "ма", "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр"]
 
 
@@ -105,10 +105,11 @@ def peaks(projection, cutoff, gap=3):
     return [int(np.mean(g)) for g in np.split(indices, np.flatnonzero(np.diff(indices) > gap) + 1) if len(g)]
 
 
-def grid(source, days):
+def grid(source, days, turns=0):
     image = cv2.imdecode(np.frombuffer(source, np.uint8), cv2.IMREAD_COLOR)
     if image is None:
         raise ValueError("Фотография не читается")
+    image = np.ascontiguousarray(np.rot90(image, turns))
     image = cv2.resize(image, None, fx=2000/image.shape[1], fy=2000/image.shape[1])
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 35, 15)
@@ -161,7 +162,7 @@ def read_cell(cell):
     crop = cv2.resize(crop, None, fx=3, fy=3)
     readings = []
     for mode in ((7, 8, 10) if glyph.shape[1] < glyph.shape[0]*1.2 else (7, 8)):
-        text, confidence = ocr(crop, psm=mode, whitelist="012468OB")
+        text, confidence = ocr(crop, psm=mode, whitelist="0124568OB")
         value = text.replace(" ", "").replace("0", "О").replace("O", "О").replace("B", "Б")
         readings.append((value, confidence))
         if len(readings) == 2 and readings[0][0] == readings[1][0] and value in VALID and max(c for _, c in readings) >= 35:
@@ -175,13 +176,48 @@ def read_cell(cell):
     return {"value": "", "uncertain": True}
 
 
+def merge_row(rows, name, group, role, values):
+    previous = next((r for r in rows if r["name"] == name and r["group"] == group and r["row"] == role), None)
+    if previous:
+        for old, new in zip(previous["cells"], values):
+            if new["value"]:
+                old["uncertain"] |= bool(old["value"] and old["value"] != new["value"])
+                old["value"] = new["value"]
+            old["uncertain"] |= new["uncertain"]
+    else:
+        rows.append({"name": name, "group": group, "row": role, "cells": values})
+
+
+def nurse_rows(values):
+    # Printed nurses can have separate or mixed day/night rows. Keep both
+    # assignments on a date instead of overwriting six hours with eighteen.
+    leave_role = "day" if any(c["value"] in {"5", "6", "8"} for c in values) else "duty"
+    for role in ("day", "duty"):
+        cells = []
+        for cell in values:
+            value = cell["value"]
+            belongs = (value in {"5", "6", "8"}) if role == "day" else (value in {"16", "18", "24"})
+            belongs |= value in {"О", "Б"} and role == leave_role
+            cells.append({"value": value if belongs else "", "uncertain": cell["uncertain"] and (belongs or not value)})
+        if any(c["value"] or c["uncertain"] for c in cells):
+            yield role, cells
+
+
 def recognize(source, month):
     year, number = map(int, month.split("-"))
     days = calendar.monthrange(year, number)[1]
-    gray, binary, horizontal, vertical, xs, ys = grid(source, days)
-    title, _ = ocr(cv2.resize(gray[ys[0]+5:ys[1]-4, xs[3]:-5], None, fx=2, fy=2), "rus", psm=11)
-    if str(year) not in title or MONTHS[number-1] not in title.lower():
-        raise ValueError("Месяц на фотографии не совпадает с выбранным или не читается")
+    failure = "Не удалось определить ориентацию и сетку таблицы"
+    for turns in range(4):
+        try:
+            gray, binary, horizontal, vertical, xs, ys = grid(source, days, turns)
+        except ValueError:
+            continue
+        title, _ = ocr(cv2.resize(gray[ys[0]+5:ys[1]-4, xs[3]:-5], None, fx=2, fy=2), "rus", psm=11)
+        if str(year) in title and MONTHS[number-1] in title.lower():
+            break
+        failure = "Месяц на фотографии не совпадает с выбранным или не читается"
+    else:
+        raise ValueError(failure)
     rows = []
     group = "surgeons"
     separator = False
@@ -206,7 +242,9 @@ def recognize(source, month):
             if name.lower().startswith("терешин "):
                 continue
             role = "duty"
-            if group == "surgeons":
+            # Suslov has one duty-only row by department convention; this
+            # month's printed form leaves his shift-label cell empty.
+            if group == "surgeons" and not name.lower().startswith("суслов "):
                 role_text, _ = ocr(cv2.resize(gray[ys[row]+5:ys[row+1]-4, xs[2]+5:xs[3]-5], None, fx=3, fy=3), psm=7, whitelist="012468-")
                 role_text = role_text.replace(" ", "")
                 if role_text in ("8-14", "814"):
@@ -223,15 +261,11 @@ def recognize(source, month):
                 bottom = y2-12+int(np.argmax(horizontal[y2-12:min(gray.shape[0], y2+12), left+5:right-5].sum(axis=1)))
                 cells.append(binary[top+5:bottom-4, left+5:right-4])
             values = list(pool.map(read_cell, cells))
-            previous = next((r for r in rows if r["name"] == name and r["group"] == group and r["row"] == role), None)
-            if previous:
-                for old, new in zip(previous["cells"], values):
-                    if new["value"]:
-                        old["uncertain"] |= bool(old["value"] and old["value"] != new["value"])
-                        old["value"] = new["value"]
-                    old["uncertain"] |= new["uncertain"]
+            if group == "nurses":
+                for nurse_role, cells in nurse_rows(values):
+                    merge_row(rows, name, group, nurse_role, cells)
             else:
-                rows.append({"name": name, "group": group, "row": role, "cells": values})
+                merge_row(rows, name, group, role, values)
     if not any(r["group"] == "nurses" for r in rows):
         raise ValueError("Не найдена отдельная группа медсестёр")
     return {"month": month, "rows": rows}
