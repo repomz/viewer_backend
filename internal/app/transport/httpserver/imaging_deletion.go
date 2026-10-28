@@ -235,6 +235,7 @@ func (s *yandexArchive) deleteImagingObjects(ctx context.Context, uid string) er
 		VersionID string `xml:"VersionId"`
 	}
 	query := url.Values{"versions": {""}, "max-keys": {"1000"}}
+	objects := []objectVersion{}
 	for {
 		response, err := s.queryRequest(ctx, http.MethodGet, "", query)
 		if err != nil {
@@ -260,17 +261,13 @@ func (s *yandexArchive) deleteImagingObjects(ctx context.Context, uid string) er
 			if !imagingObjectMatches(object.Key, uid) {
 				continue
 			}
-			result, err := s.queryRequest(ctx, http.MethodDelete, object.Key, url.Values{"versionId": {object.VersionID}})
-			if err != nil {
-				return err
-			}
-			result.Body.Close()
-			if result.StatusCode != 204 && result.StatusCode != 200 && result.StatusCode != 404 {
-				return fmt.Errorf("delete storage version: HTTP %d", result.StatusCode)
+			objects = append(objects, object)
+			if len(objects) > 250000 {
+				return fmt.Errorf("imaging storage enumeration exceeds safety limit")
 			}
 		}
 		if !page.More {
-			return nil
+			break
 		}
 		if page.NextKey == "" || (query.Get("key-marker") == page.NextKey && query.Get("version-id-marker") == page.NextVersion) {
 			return fmt.Errorf("invalid storage pagination")
@@ -278,4 +275,16 @@ func (s *yandexArchive) deleteImagingObjects(ctx context.Context, uid string) er
 		query.Set("key-marker", page.NextKey)
 		query.Set("version-id-marker", page.NextVersion)
 	}
+	// Finish enumeration before mutating keys used as pagination markers.
+	for _, object := range objects {
+		result, err := s.queryRequest(ctx, http.MethodDelete, object.Key, url.Values{"versionId": {object.VersionID}})
+		if err != nil {
+			return err
+		}
+		result.Body.Close()
+		if result.StatusCode != 204 && result.StatusCode != 200 && result.StatusCode != 404 {
+			return fmt.Errorf("delete storage version: HTTP %d", result.StatusCode)
+		}
+	}
+	return nil
 }

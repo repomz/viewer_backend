@@ -82,6 +82,9 @@ func TestDeleteImagingVersionsAndMarkersWithPagination(t *testing.T) {
 		if r.URL.Query().Get("key-marker") == "" {
 			_, _ = w.Write([]byte(`<ListVersionsResult><IsTruncated>true</IsTruncated><NextKeyMarker>next</NextKeyMarker><NextVersionIdMarker>v2</NextVersionIdMarker><Version><Key>viewer-xa/1.2.3/cines/a.mp4</Key><VersionId>v1</VersionId></Version><Version><Key>viewer-xa/1.2.30/cines/a.mp4</Key><VersionId>v1</VersionId></Version></ListVersionsResult>`))
 		} else {
+			if len(deleted) != 0 {
+				t.Error("objects were deleted before enumeration completed")
+			}
 			if r.URL.Query().Get("version-id-marker") != "v2" {
 				t.Error("missing version cursor")
 			}
