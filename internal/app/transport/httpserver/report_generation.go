@@ -202,8 +202,14 @@ func (h HttpServer) buildOperationsReport(
 				"recommendation": study.Recommendation(), "surgeon": study.Surgeon(),
 			})
 		}
+		age := ""
+		if birth := parseStudyBirthDate(entry.BirthDate); !birth.IsZero() {
+			if years := ageOnDate(birth, end); years >= 0 && years <= 125 {
+				age = strconv.Itoa(years)
+			}
+		}
 		todayPlan = append(todayPlan, map[string]any{
-			"patient": entry.Patient, "age": "", "department": entry.Department,
+			"patient": entry.Patient, "age": age, "department": entry.Department,
 			"operation": entry.Operation, "previous_operations": previous,
 		})
 	}

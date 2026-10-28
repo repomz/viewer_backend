@@ -8,6 +8,8 @@ Stdout is JSON only; photos and temporary OCR inputs never persist on disk.
 import calendar
 from collections import Counter
 import concurrent.futures
+import ctypes
+import ctypes.util
 import csv
 import io
 import json
@@ -15,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 
 import cv2
 import numpy as np
@@ -25,14 +28,74 @@ VALID = {"6", "8", "16", "18", "24", "О", "Б"}
 MONTHS = ["январ", "феврал", "март", "апрел", "ма", "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр"]
 
 
-def ocr(image, language="eng", psm=7, whitelist=None):
+class TesseractEngine:
+    """Reuse loaded language data; each worker owns its own native handle."""
+    def __init__(self, language):
+        self.handle = None
+        self.lib = ctypes.CDLL(ctypes.util.find_library("tesseract") or "libtesseract.so")
+        ptr, integer, string = ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p
+        signatures = {
+            "TessBaseAPICreate": ([], ptr),
+            "TessBaseAPIInit3": ([ptr, string, string], integer),
+            "TessBaseAPISetVariable": ([ptr, string, string], integer),
+            "TessBaseAPISetPageSegMode": ([ptr, integer], None),
+            "TessBaseAPISetImage": ([ptr, ptr, integer, integer, integer, integer], None),
+            "TessBaseAPIGetTsvText": ([ptr, integer], ptr),
+            "TessDeleteText": ([ptr], None),
+            "TessBaseAPIClear": ([ptr], None),
+            "TessBaseAPIClearAdaptiveClassifier": ([ptr], None),
+            "TessBaseAPIDelete": ([ptr], None),
+        }
+        for name, (args, result) in signatures.items():
+            function = getattr(self.lib, name)
+            function.argtypes, function.restype = args, result
+        self.handle = self.lib.TessBaseAPICreate()
+        if not self.handle or self.lib.TessBaseAPIInit3(self.handle, None, language.encode()) != 0:
+            raise RuntimeError("Не удалось загрузить язык распознавателя")
+
+    def __del__(self):
+        if self.handle:
+            self.lib.TessBaseAPIDelete(self.handle)
+
+    def read(self, image, psm, whitelist):
+        pixels = np.ascontiguousarray(image, dtype=np.uint8)
+        self.lib.TessBaseAPISetVariable(self.handle, b"tessedit_char_whitelist", (whitelist or "").encode())
+        self.lib.TessBaseAPISetPageSegMode(self.handle, psm)
+        self.lib.TessBaseAPIClearAdaptiveClassifier(self.handle)
+        self.lib.TessBaseAPISetImage(self.handle, pixels.ctypes.data, pixels.shape[1], pixels.shape[0], 1, pixels.strides[0])
+        text = self.lib.TessBaseAPIGetTsvText(self.handle, 0)
+        try:
+            if not text:
+                raise RuntimeError("Ошибка распознавания ячейки")
+            # Native TSV omits the header supplied by the command-line renderer.
+            return "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n" + ctypes.string_at(text).decode()
+        finally:
+            if text:
+                self.lib.TessDeleteText(text)
+            self.lib.TessBaseAPIClear(self.handle)
+
+
+_engines = threading.local()
+
+
+def subprocess_ocr(image, language="eng", psm=7, whitelist=None):
     command = ["tesseract", "stdin", "stdout", "-l", language, "--psm", str(psm)]
     if whitelist:
         command += ["-c", "tessedit_char_whitelist=" + whitelist]
     command += ["-c", "tessedit_create_tsv=1"]
     result = subprocess.run(command, input=cv2.imencode(".png", image)[1].tobytes(),
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=8, check=True)
-    words = [r for r in csv.DictReader(io.StringIO(result.stdout.decode()), delimiter="\t")
+    return result.stdout.decode()
+
+
+def ocr(image, language="eng", psm=7, whitelist=None):
+    engines = getattr(_engines, "languages", None)
+    if engines is None:
+        engines = _engines.languages = {}
+    if language not in engines:
+        engines[language] = TesseractEngine(language)
+    output = engines[language].read(image, psm, whitelist)
+    words = [r for r in csv.DictReader(io.StringIO(output), delimiter="\t")
              if r.get("text", "").strip()]
     return " ".join(r["text"] for r in words), min((float(r["conf"]) for r in words), default=0)
 
@@ -74,7 +137,7 @@ def grid(source, days):
         else:
             merged.append(y)
     ys = merged
-    if len(xs) != days+4 or len(ys) < 15 or len(ys) > 70:
+    if len(xs) not in (days+4, 35) or len(ys) < 15 or len(ys) > 70:
         raise ValueError("Не удалось однозначно разделить дни и строки таблицы")
     widths = np.diff(xs[3:])
     if widths.max() > widths.min()*1.65:

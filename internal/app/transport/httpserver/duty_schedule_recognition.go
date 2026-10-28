@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -153,8 +154,20 @@ func (h HttpServer) RecognizeDutySchedule(w http.ResponseWriter, r *http.Request
 	cmd.Env = append(os.Environ(), "OMP_THREAD_LIMIT=1", "OPENBLAS_NUM_THREADS=1")
 	var output, diagnostic bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &diagnostic
+	started := time.Now()
 	if err := cmd.Run(); err != nil {
-		writePlatformError(w, 422, "Не удалось однозначно распознать сетку или месяц. Снимите весь лист ровно, без обрезанных краёв")
+		message := strings.TrimSpace(diagnostic.String())
+		if ctx.Err() != nil {
+			log.Printf("schedule OCR month=%s failed: %v", month, ctx.Err())
+			writePlatformError(w, 504, "Распознавание превысило время ожидания. Сохранённый график не изменён. Повторите загрузку")
+			return
+		}
+		// The Python worker emits only fixed diagnostics, never photo contents.
+		log.Printf("schedule OCR month=%s duration=%s failed: %v diagnostic=%q", month, time.Since(started).Round(time.Millisecond), err, message)
+		if message == "" || len(message) > 600 {
+			message = "Не удалось распознать график. Сохранённый график не изменён"
+		}
+		writePlatformError(w, 422, message)
 		return
 	}
 	var recognized schedulePhotoResult
@@ -167,6 +180,7 @@ func (h HttpServer) RecognizeDutySchedule(w http.ResponseWriter, r *http.Request
 		writePlatformError(w, 422, err.Error())
 		return
 	}
+	log.Printf("schedule OCR month=%s duration=%s rows=%d ready=%t", month, time.Since(started).Round(time.Millisecond), len(recognized.Rows), scheduleReady(result))
 	// Save immediately, but never expose unresolved schedules to regular users.
 	dutyScheduleMu.Lock()
 	previous, err := loadDutySchedule(month)

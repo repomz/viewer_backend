@@ -7,12 +7,40 @@ The photograph itself is deliberately not committed.
 import os
 from pathlib import Path
 import unittest
+import concurrent.futures
+import csv
+import io
+import cv2
 
 import numpy as np
-from schedule_ocr import read_cell, recognize
+from schedule_ocr import read_cell, recognize, ocr, subprocess_ocr, grid
 
 
 class RosterOCRTest(unittest.TestCase):
+    def test_reused_engine_matches_command_line(self):
+        def compare(value):
+            image = np.full((90, 190), 255, np.uint8)
+            cv2.putText(image, value, (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 2, 0, 3)
+            for mode in (7, 8, 10):
+                text, confidence = ocr(image, psm=mode, whitelist="012468OB")
+                words = [r for r in csv.DictReader(io.StringIO(subprocess_ocr(image, psm=mode, whitelist="012468OB")), delimiter="\t") if r.get("text", "").strip()]
+                self.assertEqual(text, " ".join(r["text"] for r in words))
+                self.assertAlmostEqual(confidence, min((float(r["conf"]) for r in words), default=0), places=3)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(compare, ["6", "16", "18", "24", "O", "6"]))
+
+    def test_november_accepts_31_column_template_under_perspective(self):
+        image = np.full((1500, 2400, 3), 255, np.uint8)
+        xs = [50, 100, 460, 570] + list(range(625, 2276, 55))
+        for x in xs:
+            cv2.line(image, (x, 50), (x, 1400), (0, 0, 0), 3)
+        for y in range(50, 1401, 50):
+            cv2.line(image, (50, y), (2275, y), (0, 0, 0), 3)
+        transform = cv2.getPerspectiveTransform(np.float32([[0, 0], [2399, 0], [2399, 1499], [0, 1499]]), np.float32([[35, 60], [2350, 10], [2380, 1460], [10, 1490]]))
+        image = cv2.warpPerspective(image, transform, (2400, 1500), borderValue=(255, 255, 255))
+        result = grid(cv2.imencode(".png", image)[1].tobytes(), 30)
+        self.assertEqual(len(result[4]), 35)
+
     def test_blank(self):
         self.assertEqual(read_cell(np.zeros((40, 70), np.uint8)), {"value": "", "uncertain": False})
 

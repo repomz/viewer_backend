@@ -67,7 +67,7 @@ func TestBuildOperationsReportUsesPlanToSeparateEmergencyOperations(t *testing.T
 			{Patient: "Иванов И.И.", Department: "кардио 2", Operation: "КАГ"},
 			{Patient: "Несделан Н.Н.", Department: "кардио 2", Operation: "КАГ"},
 		},
-		"2026-08-03": {{Patient: "Сидоров С.С.", Department: "кардио 1", Operation: "КАГ"}},
+		"2026-08-03": {{Patient: "Сидоров С.С.", BirthDate: "1960-08-04", Department: "кардио 1", Operation: "КАГ"}},
 	}}
 	if err := saveOperationPlan(plan); err != nil {
 		t.Fatal(err)
@@ -98,6 +98,10 @@ func TestBuildOperationsReportUsesPlanToSeparateEmergencyOperations(t *testing.T
 		t.Fatalf("report counts = %#v", report)
 	}
 	planned := report["planned_operations"].([]map[string]any)
+	today := report["today_planned_operations"].([]map[string]any)
+	if today[0]["age"] != "65" {
+		t.Fatalf("planned age must use birthday at report date: %#v", today)
+	}
 	if len(planned) != 1 || planned[0]["patient"] != "Иванов Иван Иванович" {
 		t.Fatalf("planned operations contain an unperformed plan entry: %#v", planned)
 	}
