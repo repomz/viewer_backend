@@ -42,6 +42,19 @@ func (h HttpServer) createModalityStudy(
 		server.RespondWithError(err, w, r)
 		return
 	}
+	lock := imagingLock(request.StudyUID)
+	lock.Lock()
+	defer lock.Unlock()
+	if h.xaCache != nil && h.xaCache.deletionRequested(request.StudyUID) {
+		// An agent might have uploaded a new attempt before receiving this
+		// rejection. Revisit the tombstone to remove those late S3 objects too.
+		if err := h.xaCache.saveDeletion(imagingDeletion{StudyUID: request.StudyUID, Status: "pending"}); err != nil {
+			http.Error(w, "Cannot queue cleanup of deleted study", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "Study was deleted by administrator", http.StatusGone)
+		return
+	}
 	existing, err := h.studyService.GetStudyByStudyIDAndType(
 		r.Context(),
 		request.StudyUID,

@@ -92,7 +92,7 @@ func (storage *yandexArchive) signAndDo(request *http.Request, contentType, payl
 		"x-amz-content-sha256:" + payloadHash + "\n" +
 		"x-amz-date:" + amzDate + "\n"
 	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
-	canonicalRequest := request.Method + "\n" + request.URL.EscapedPath() + "\n\n" +
+	canonicalRequest := request.Method + "\n" + request.URL.EscapedPath() + "\n" + strings.ReplaceAll(request.URL.Query().Encode(), "+", "%20") + "\n" +
 		canonicalHeaders + "\n" + signedHeaders + "\n" + payloadHash
 	scope := date + "/" + storage.region + "/s3/aws4_request"
 	canonicalDigest := sha256.Sum256([]byte(canonicalRequest))

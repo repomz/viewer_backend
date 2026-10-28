@@ -126,6 +126,7 @@ func run() error {
 		go httpServer.StartStudyRetention(retentionCtx)
 	}
 	go httpServer.StartReportScheduler(retentionCtx)
+	go httpServer.StartImagingDeletions(retentionCtx)
 
 	// create http router
 	router := mux.NewRouter().StrictSlash(true)
@@ -166,7 +167,9 @@ func run() error {
 	router.HandleFunc("/xa-cache/{study_uid}/archive", httpServer.GetXACacheArchive).Methods(http.MethodGet)
 	router.HandleFunc("/xa-cache/{study_uid}/series/{cine_id}", httpServer.GetXACacheCine).Methods(http.MethodGet)
 	router.HandleFunc("/xa-cache/{study_uid}/frames/{frame_id}", httpServer.GetXACacheFrame).Methods(http.MethodGet)
-	router.HandleFunc("/pacs/studies/{study_uid}", httpServer.DeletePACSStudy).Methods(http.MethodDelete)
+	router.HandleFunc("/pacs/studies/{study_uid}", httpServer.RequireAdmin(httpServer.DeletePACSStudy)).Methods(http.MethodDelete)
+	router.HandleFunc("/imaging-studies/{study_uid}", httpServer.RequireAdmin(httpServer.RequestImagingDeletion)).Methods(http.MethodDelete)
+	router.HandleFunc("/imaging-deletions", httpServer.RequireAuth(httpServer.ListImagingDeletions)).Methods(http.MethodGet)
 	router.HandleFunc("/reports/generate", httpServer.GenerateReport).Methods(http.MethodPost)
 	router.HandleFunc("/reports", httpServer.GetReports).Methods(http.MethodGet)
 	router.HandleFunc("/reports/{filename}", httpServer.GetReport).Methods(http.MethodGet)

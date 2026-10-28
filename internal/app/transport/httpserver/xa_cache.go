@@ -182,7 +182,7 @@ func (c *XACache) start() {
 }
 
 func validStudyUID(value string) bool {
-	if value == "" || len(value) > 128 {
+	if value == "" || len(value) > 128 || strings.HasPrefix(value, ".") || strings.HasSuffix(value, ".") || strings.Contains(value, "..") {
 		return false
 	}
 	for _, character := range value {
@@ -251,7 +251,7 @@ func (c *XACache) ready(manifest xaCacheManifest) bool {
 }
 
 func (c *XACache) Enqueue(studyUID string) {
-	if !validStudyUID(studyUID) {
+	if !validStudyUID(studyUID) || c.deletionRequested(studyUID) {
 		return
 	}
 	if manifest, err := c.readManifest(studyUID); err == nil && c.ready(manifest) {
@@ -309,6 +309,12 @@ func (c *XACache) HydrateArchived(studyUID string) {
 }
 
 func (c *XACache) hydrateArchivedStudy(manifest xaCacheManifest) {
+	lock := imagingLock(manifest.StudyUID)
+	lock.Lock()
+	defer lock.Unlock()
+	if c.deletionRequested(manifest.StudyUID) {
+		return
+	}
 	if c.archiveSlots != nil {
 		c.archiveSlots <- struct{}{}
 		defer func() { <-c.archiveSlots }()
@@ -362,6 +368,16 @@ func (c *XACache) hydrateArchivedStudy(manifest xaCacheManifest) {
 }
 
 func (c *XACache) archivePreparedStudy(manifest xaCacheManifest) {
+	lock := imagingLock(manifest.StudyUID)
+	lock.Lock()
+	defer lock.Unlock()
+	c.archivePreparedStudyLocked(manifest)
+}
+
+func (c *XACache) archivePreparedStudyLocked(manifest xaCacheManifest) {
+	if c.deletionRequested(manifest.StudyUID) {
+		return
+	}
 	if c.archiveSlots != nil {
 		c.archiveSlots <- struct{}{}
 		defer func() { <-c.archiveSlots }()
@@ -516,6 +532,9 @@ func (c *XACache) deletePACSOnly(ctx context.Context, studyUID string) error {
 }
 
 func (c *XACache) deleteStudy(ctx context.Context, studyUID string) error {
+	if !validStudyUID(studyUID) {
+		return errors.New("invalid StudyInstanceUID")
+	}
 	// Deletion is intentionally idempotent. A prepared XA can already have
 	// been archived and removed from Orthanc while its application record (or
 	// local cache) still exists. In that case we must still clear the cache so
@@ -647,6 +666,12 @@ func (c *XACache) buildManifest(
 }
 
 func (c *XACache) prepare(studyUID string) {
+	lock := imagingLock(studyUID)
+	lock.Lock()
+	defer lock.Unlock()
+	if c.deletionRequested(studyUID) {
+		return
+	}
 	status := xaCacheStatus{Status: "preparing", StudyUID: studyUID}
 	c.setStatus(status)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -723,7 +748,7 @@ func (c *XACache) prepare(studyUID string) {
 		return
 	}
 	if c.cloud != nil {
-		c.archivePreparedStudy(manifest)
+		c.archivePreparedStudyLocked(manifest)
 		return
 	}
 	c.setStatus(xaCacheStatus{
@@ -1069,6 +1094,9 @@ func (c *XACache) writeManifest(manifest xaCacheManifest) error {
 }
 
 func (c *XACache) readManifest(studyUID string) (xaCacheManifest, error) {
+	if c.deletionRequested(studyUID) {
+		return xaCacheManifest{}, os.ErrNotExist
+	}
 	file, err := os.Open(c.manifestPath(studyUID))
 	if err != nil {
 		if c.cloud == nil {
@@ -1144,6 +1172,10 @@ func (h HttpServer) GetXACacheManifest(w http.ResponseWriter, r *http.Request) {
 	studyUID := mux.Vars(r)["study_uid"]
 	if !validStudyUID(studyUID) {
 		server.BadRequest("invalid-study-uid", errors.New("invalid StudyInstanceUID"), w, r)
+		return
+	}
+	if h.xaCache.deletionRequested(studyUID) {
+		http.Error(w, "Study deleted", http.StatusGone)
 		return
 	}
 	manifest, err := h.xaCache.readManifest(studyUID)
@@ -1265,6 +1297,10 @@ func (h HttpServer) GetXACacheFrame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	studyUID := mux.Vars(r)["study_uid"]
+	if h.xaCache.deletionRequested(studyUID) {
+		http.Error(w, "Study deleted", http.StatusGone)
+		return
+	}
 	frameID := mux.Vars(r)["frame_id"]
 	if !validStudyUID(studyUID) ||
 		!strings.HasSuffix(frameID, ".jpg") ||
