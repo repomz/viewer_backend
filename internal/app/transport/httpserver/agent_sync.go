@@ -54,7 +54,10 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 	if matched == 1 {
 		return "present"
 	}
-	if identityConflict || conflict || probe.Room == 0 {
+	// Source-backed provisional records may lack a room/journal number. Other
+	// collisions still require review; never merge by surname alone.
+	provisional := probe.Source != nil && strings.HasPrefix(probe.StudyID, "pending-")
+	if identityConflict || conflict || (probe.Room == 0 && !provisional) {
 		return "review"
 	}
 	return "missing"
@@ -109,6 +112,17 @@ func (h HttpServer) ReconcileProtocolBatch(w http.ResponseWriter, r *http.Reques
 	rows.Close()
 	statuses := make([]string, len(request.Items))
 	for i, p := range request.Items {
+		if p.Source != nil {
+			var known bool
+			if err := h.sqlDB.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM protocol_sources p JOIN studies s ON s.id=p.study_id WHERE p.agent_id=$1 AND p.file_id=$2 AND NOT s.deleted)`, p.Source.AgentID, p.Source.FileID).Scan(&known); err != nil {
+				server.RespondWithError(err, w, r)
+				return
+			}
+			if known {
+				statuses[i] = "present"
+				continue // Changed file content is subsequently updated by the agent.
+			}
+		}
 		statuses[i] = probeStatus(p, records)
 		if statuses[i] == "present" && p.Source != nil {
 			tx, txErr := h.sqlDB.BeginTx(r.Context(), nil)

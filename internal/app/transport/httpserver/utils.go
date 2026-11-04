@@ -58,7 +58,8 @@ func toDomainAgentRecord(agentRequest httpmodels.AgentRecordRequest) (domain.Age
 
 func toResponseStudy(study domain.Study) httpmodels.StudyResponse {
 	return httpmodels.StudyResponse{
-		Options: study.Options(), Payment: study.Payment(), PaymentPending: study.PaymentPending(),
+		MissingFields: httpmodels.MissingProtocolFields(study),
+		Options:       study.Options(), Payment: study.Payment(), PaymentPending: study.PaymentPending(),
 		ID:             study.ID(),
 		CreatedAt:      study.CreatedAt(),
 		UpdatedAt:      study.UpdatedAt(),

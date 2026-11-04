@@ -42,6 +42,36 @@ func TestProtocolSourceRegistrationDoesNotChangeClinicalText(t *testing.T) {
 	}
 }
 
+func TestIncompleteProtocolCanBeCompletedWithoutDuplicate(t *testing.T) {
+	h := sourceTestServer(t)
+	source := &httpmodels.ProtocolSource{AgentID: 1, FileID: uuid.NewString(), Root: "root", Path: "root/incomplete.docx"}
+	p := httpmodels.StudyRequest{Source: source, StudyID: "pending-" + uuid.NewString(), Patient: "Тестовый Пациент", Room: 0, NameOperation: "КАГ", StudyType: "каг", Department: "не указано", Surgeon: "не указано", Description: "Описание", TimeBeginning: time.Now().UTC().Truncate(time.Second)}
+	first, err := h.upsertProtocol(context.Background(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(toResponseStudy(first).MissingFields) != 4 {
+		t.Fatal("missing fields not exposed")
+	}
+	p.StudyID = "123"
+	p.Room = 1
+	p.Department = "рсц"
+	p.Surgeon = "идрисов"
+	body, _ := json.Marshal(map[string]any{"year": time.Now().Year(), "items": []protocolProbe{{Source: source, StudyID: p.StudyID, Patient: p.Patient, Room: 1, Time: p.TimeBeginning}}})
+	response := httptest.NewRecorder()
+	h.ReconcileProtocolBatch(response, httptest.NewRequest("POST", "/agent/protocols/reconcile", bytes.NewReader(body)))
+	if response.Code != 200 || !strings.Contains(response.Body.String(), "present") {
+		t.Fatal(response.Code, response.Body.String())
+	}
+	updated, err := h.upsertProtocol(context.Background(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ID() != first.ID() || len(toResponseStudy(updated).MissingFields) != 0 {
+		t.Fatal("correction duplicated record or retained warning")
+	}
+}
+
 func sourceTestServer(t *testing.T) HttpServer {
 	t.Helper()
 	dsn := os.Getenv("VIEWER_TEST_DSN")

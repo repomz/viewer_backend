@@ -140,6 +140,7 @@ func (s *StudyDicomLinkRequest) Validate() error {
 }
 
 type StudyResponse struct {
+	MissingFields  []string  `json:"missing_fields,omitempty"`
 	Room           int32     `json:"room,omitempty"`
 	Description    string    `json:"description"`
 	Options        string    `json:"options"`
@@ -161,4 +162,35 @@ type StudyResponse struct {
 	TimeDuration   int32     `json:"time_duration"`
 	Surgeon        string    `json:"surgeon"`
 	DicomLink      string    `json:"dicom_link"`
+}
+
+// MissingProtocolFields is derived from stored values, so corrections clear the
+// warning automatically and older records do not require a flag backfill.
+func MissingProtocolFields(s domain.Study) []string {
+	if strings.EqualFold(s.StudyType(), "xa") || strings.EqualFold(s.StudyType(), "ct") {
+		return nil
+	}
+	missing := []string{}
+	empty := func(v string) bool {
+		return strings.TrimSpace(v) == "" || strings.EqualFold(strings.TrimSpace(v), "не указано")
+	}
+	if empty(s.StudyID()) || strings.HasPrefix(s.StudyID(), "pending-") {
+		missing = append(missing, "study_id")
+	}
+	if s.Room() == 0 {
+		missing = append(missing, "room")
+	}
+	if empty(s.Department()) {
+		missing = append(missing, "department")
+	}
+	if empty(s.Surgeon()) {
+		missing = append(missing, "surgeon")
+	}
+	if empty(s.NameOperation()) {
+		missing = append(missing, "name_operation")
+	}
+	if !s.TimeBeginning().Valid {
+		missing = append(missing, "time_beginning")
+	}
+	return missing
 }
