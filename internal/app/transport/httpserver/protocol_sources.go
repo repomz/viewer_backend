@@ -86,7 +86,7 @@ func (h HttpServer) upsertProtocol(ctx context.Context, request httpmodels.Study
 			return domain.Study{}, err
 		}
 	}
-	if id == uuid.Nil && (request.Room > 0 || strings.HasPrefix(request.StudyID, "pending-")) {
+	if id == uuid.Nil && (request.Room > 0 || request.Source != nil) {
 		id, err = findProtocol(ctx, tx, protocolProbe{StudyID: request.StudyID, Patient: request.Patient, Room: int(request.Room), Time: request.TimeBeginning})
 		if err != nil {
 			return domain.Study{}, err

@@ -3,6 +3,8 @@ package httpserver
 import (
 	"testing"
 	"time"
+
+	"github.com/repomz/viewer_backend/internal/app/transport/httpmodels"
 )
 
 func TestProbeStatus(t *testing.T) {
@@ -49,5 +51,9 @@ func TestProbeStatus(t *testing.T) {
 	p.Room = 0
 	if probeStatus(p, nil) != "review" {
 		t.Fatal("unknown room")
+	}
+	p.Source = &httpmodels.ProtocolSource{AgentID: 1}
+	if probeStatus(p, nil) != "missing" {
+		t.Fatal("registered source permits an unambiguous incomplete room")
 	}
 }

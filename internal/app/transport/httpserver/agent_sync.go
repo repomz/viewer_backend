@@ -56,8 +56,7 @@ func probeStatus(probe protocolProbe, records []protocolProbe) string {
 	}
 	// Source-backed provisional records may lack a room/journal number. Other
 	// collisions still require review; never merge by surname alone.
-	provisional := probe.Source != nil && strings.HasPrefix(probe.StudyID, "pending-")
-	if identityConflict || conflict || (probe.Room == 0 && !provisional) {
+	if identityConflict || conflict || (probe.Room == 0 && probe.Source == nil) {
 		return "review"
 	}
 	return "missing"
