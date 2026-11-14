@@ -116,11 +116,7 @@ func isProtocolStudy(study domain.Study) bool {
 // The agent sends UTC timestamps. PostgreSQL stores those UTC clock values
 // without a zone; convert them to hospital time for reporting.
 func reportStudyTime(value time.Time) time.Time {
-	location, err := time.LoadLocation("Asia/Tomsk")
-	if err != nil {
-		location = time.FixedZone("Asia/Tomsk", 7*60*60)
-	}
-	return value.In(location)
+	return value.In(time.Local)
 }
 
 func dutyDate(value time.Time) string {
