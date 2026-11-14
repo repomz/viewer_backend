@@ -90,8 +90,11 @@ func reportOperation(study domain.Study) map[string]any {
 		duration = value.Int32
 	}
 	timeValue := ""
+	dateValue := ""
 	if value := study.TimeBeginning(); value.Valid {
-		timeValue = reportStudyTime(value.Time).Format("15:04")
+		localTime := reportStudyTime(value.Time)
+		timeValue = localTime.Format("15:04")
+		dateValue = localTime.Format("2006-01-02")
 	}
 	return map[string]any{
 		"patient":        study.Patient(),
@@ -99,6 +102,7 @@ func reportOperation(study domain.Study) map[string]any {
 		"department":     study.Department(),
 		"operation":      study.NameOperation(),
 		"time_beginning": timeValue,
+		"operation_date": dateValue,
 		"time_duration":  duration,
 		"surgeon":        study.Surgeon(),
 	}
@@ -112,7 +116,11 @@ func isProtocolStudy(study domain.Study) bool {
 // The agent sends UTC timestamps. PostgreSQL stores those UTC clock values
 // without a zone; convert them to hospital time for reporting.
 func reportStudyTime(value time.Time) time.Time {
-	return value.In(time.Local)
+	location, err := time.LoadLocation("Asia/Tomsk")
+	if err != nil {
+		location = time.FixedZone("Asia/Tomsk", 7*60*60)
+	}
+	return value.In(location)
 }
 
 func dutyDate(value time.Time) string {

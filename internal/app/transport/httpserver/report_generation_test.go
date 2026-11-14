@@ -43,6 +43,9 @@ func TestReportConvertsAgentUTCAndMatchesPlannedDay(t *testing.T) {
 	if operations[0]["time_beginning"] != "08:25" {
 		t.Fatalf("wall-clock time shifted: %v", operations[0]["time_beginning"])
 	}
+	if operations[0]["operation_date"] != "2026-09-30" {
+		t.Fatalf("operation date must use hospital-local date: %v", operations[0]["operation_date"])
+	}
 }
 
 func TestReportPeriodSupportsDaysAndInclusiveCalendarRange(t *testing.T) {
